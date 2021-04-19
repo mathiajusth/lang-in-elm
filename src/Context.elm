@@ -9,13 +9,8 @@ type alias Context =
     Dict Value.Symbol Type
 
 
-add : ValueVar -> Type -> Context -> Context
-add valueVar type_ context =
-    Debug.todo "TODO add"
-
-
-unify : Context -> Context -> Maybe Context
-unify ctx1 ctx2 =
+merge : Context -> Context -> Maybe Context
+merge ctx1 ctx2 =
     -- unsafely (doesn't check for cycles)
     Dict.merge
         (\symbol type_ ->
@@ -30,7 +25,8 @@ unify ctx1 ctx2 =
                                 |> Dict.insert symbol type1
                                 |> Dict.map
                                     (\_ type_ ->
-                                        Type.findQuotientRepresentative type1Withtype2Subs type_
+                                        type_
+                                            |> Type.findQuotientRepresentative type1Withtype2Subs
                                     )
                         )
                         (Type.unify type1 type2)
@@ -42,20 +38,3 @@ unify ctx1 ctx2 =
         ctx1
         ctx2
         (Just Dict.empty)
-
-
-
---
---
--- applyTypeSubstitutions : TypeSubstitutions -> Context -> Context
--- applyTypeSubstitutions typeSubstitutions context =
---     -- TODO this can cycle
---     Debug.todo "TODO applyTypeSubstitutions"
-
-
-type alias ValueVar =
-    String
-
-
-type alias TypeVar =
-    String

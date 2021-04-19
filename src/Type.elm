@@ -130,7 +130,11 @@ mergeSubstitutions subs1 subs2 =
                 (\accSubs ->
                     Maybe.andThen
                         (\type1Withtype2Subs ->
-                            mergeSubstitutions (Dict.insert symbol type1 type1Withtype2Subs) accSubs
+                            accSubs
+                                |> mergeSubstitutions
+                                    (type1Withtype2Subs
+                                        |> Dict.insert symbol type1
+                                    )
                         )
                         (unify type1 type2)
                 )
