@@ -1,7 +1,9 @@
 module Type exposing
     ( Type(..)
     , and
+    , findQuotientRepresentative
     , or
+    , unify
     , variable
     )
 
@@ -36,6 +38,34 @@ type alias Substitutions =
 
 
 -- Helpers
+
+
+substitute : Substitutions -> Type -> Type
+substitute substitutions originalType =
+    case originalType of
+        Variable symbol ->
+            Dict.get symbol substitutions
+                |> Maybe.withDefault originalType
+
+        Or typeLeft typeRight ->
+            Or (substitute substitutions typeLeft) (substitute substitutions typeRight)
+
+        And typeLeft typeRight ->
+            And (substitute substitutions typeLeft) (substitute substitutions typeRight)
+
+
+findQuotientRepresentative : Substitutions -> Type -> Type
+findQuotientRepresentative substitutions originalType =
+    let
+        substitutedType : Type
+        substitutedType =
+            substitute substitutions originalType
+    in
+    if substitutedType == originalType then
+        substitutedType
+
+    else
+        findQuotientRepresentative substitutions substitutedType
 
 
 variable =
