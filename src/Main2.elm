@@ -30,5 +30,3 @@ isOfTypeOne value =
 
 isOfTypeZero value =
     False
-
-ZZZZ

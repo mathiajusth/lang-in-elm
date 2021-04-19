@@ -1,15 +1,40 @@
-module Value exposing (Value, left, right, tuple, var)
+module Value exposing
+    ( Symbol
+    , Value
+    , left
+    , right
+    , tuple
+    , variable
+    )
+
+import Data.Symbol
+
+
+
+-- Types
 
 
 type Value
-    = Var String
+    = Variable Symbol
     | Left Value
     | Right Value
     | Tuple Value Value
 
 
-var =
-    Var
+type alias Symbol =
+    Data.Symbol.Symbol ValueSymbolTag
+
+
+type ValueSymbolTag
+    = ValueSymbolTag
+
+
+
+-- Helpers
+
+
+variable =
+    Variable
 
 
 left =

@@ -5,8 +5,8 @@ import Value exposing (Value)
 
 
 type TypeAssignement
-    = ValueOfType Value Type
+    = TypeAssignement Value Type
 
 
 typeOf =
-    ValueOfType
+    TypeAssignement
