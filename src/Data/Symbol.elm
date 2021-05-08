@@ -2,6 +2,7 @@ module Data.Symbol exposing
     ( Symbol
     , compare
     , equals
+    , fromString
     )
 
 import Data.Comparison as Comparison exposing (Comparison)
@@ -26,3 +27,8 @@ compare (Symbol string1) (Symbol string2) =
 
     else
         Comparison.Lower
+
+
+fromString : String -> Symbol a
+fromString string =
+    Symbol string

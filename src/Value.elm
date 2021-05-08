@@ -7,7 +7,7 @@ module Value exposing
     , variable
     )
 
-import Data.Symbol
+import Data.Symbol as Symbol
 
 
 
@@ -22,7 +22,7 @@ type Value
 
 
 type alias Symbol =
-    Data.Symbol.Symbol ValueSymbolTag
+    Symbol.Symbol ValueSymbolTag
 
 
 type ValueSymbolTag
@@ -33,8 +33,9 @@ type ValueSymbolTag
 -- Helpers
 
 
+variable : String -> Value
 variable =
-    Variable
+    Symbol.fromString >> Variable
 
 
 left =

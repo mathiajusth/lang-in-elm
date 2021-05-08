@@ -1,14 +1,25 @@
 module Type exposing
-    ( Type(..)
-    , and
-    , findQuotientRepresentative
-    , or
-    , unify
-    , variable
+    ( Type(..), variable, and, or, unify, represent
+    , a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
     )
+
+{-| tralala.
+
+
+# Export
+
+@docs Type, variable, and, or, unify, represent
+
+
+# Testing
+
+@docs a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
+
+-}
 
 import AssocList as Dict exposing (Dict)
 import Data.Comparison as Comparison
+import Data.Dict.Extra as Dict
 import Data.Set as Set exposing (Set)
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
@@ -40,36 +51,46 @@ type alias Substitutions =
 -- Helpers
 
 
-substitute : Substitutions -> Type -> Type
-substitute substitutions originalType =
-    case originalType of
+map : (Symbol -> Type) -> Type -> Type
+map expandLeaf type_ =
+    case type_ of
         Variable symbol ->
-            Dict.get symbol substitutions
-                |> Maybe.withDefault originalType
+            expandLeaf symbol
 
         Or typeLeft typeRight ->
-            Or (substitute substitutions typeLeft) (substitute substitutions typeRight)
+            Or (map expandLeaf typeLeft) (map expandLeaf typeRight)
 
         And typeLeft typeRight ->
-            And (substitute substitutions typeLeft) (substitute substitutions typeRight)
+            And (map expandLeaf typeLeft) (map expandLeaf typeRight)
 
 
-findQuotientRepresentative : Substitutions -> Type -> Type
-findQuotientRepresentative substitutions originalType =
-    let
-        substitutedType : Type
-        substitutedType =
-            substitute substitutions originalType
-    in
-    if substitutedType == originalType then
-        substitutedType
-
-    else
-        findQuotientRepresentative substitutions substitutedType
+realizeSubstitutions : Substitutions -> (Symbol -> Type)
+realizeSubstitutions substitutions =
+    \symbol ->
+        Dict.get symbol substitutions
+            |> Maybe.withDefault (Variable symbol)
 
 
+substitute : Substitutions -> (Type -> Type)
+substitute =
+    realizeSubstitutions >> map
+
+
+represent : Substitutions -> Type -> Type
+represent substitutions originalType =
+    substitute substitutions originalType
+        |> (\newType ->
+                if newType == originalType then
+                    newType
+
+                else
+                    substitute substitutions newType
+           )
+
+
+variable : String -> Type
 variable =
-    Variable
+    Symbol.fromString >> Variable
 
 
 or =
@@ -120,28 +141,62 @@ unify type1 type2 =
 
 
 mergeSubstitutions : Substitutions -> Substitutions -> Maybe Substitutions
-mergeSubstitutions subs1 subs2 =
-    Dict.merge
-        (\symbol type_ ->
-            Maybe.map (Dict.insert symbol type_)
+mergeSubstitutions =
+    Dict.mergeWithPossibleFailOnConflict
+        (\symbol type1 type2 accumulatedSubstitutions ->
+            unify type1 type2
+                |> Maybe.andThen
+                    (\type1Withtype2Substitutions ->
+                        mergeSubstitutions
+                            accumulatedSubstitutions
+                            (type1Withtype2Substitutions
+                                |> Dict.insert symbol type1
+                            )
+                    )
         )
-        (\symbol type1 type2 ->
-            Maybe.andThen
-                (\accSubs ->
-                    Maybe.andThen
-                        (\type1Withtype2Subs ->
-                            accSubs
-                                |> mergeSubstitutions
-                                    (type1Withtype2Subs
-                                        |> Dict.insert symbol type1
-                                    )
-                        )
-                        (unify type1 type2)
-                )
+
+
+
+-- Testing
+
+
+aORb : Type
+aORb =
+    or (variable "a") (variable "b")
+
+
+a1ANDa2_ORb2 : Type
+a1ANDa2_ORb2 =
+    or
+        (and
+            (variable "a1")
+            (variable "a2")
         )
-        (\symbol type_ ->
-            Maybe.map (Dict.insert symbol type_)
+        (variable "b2")
+
+
+a3ANDa4_ORb : Type
+a3ANDa4_ORb =
+    or
+        (and
+            (variable "a3")
+            (variable "a4")
         )
-        subs1
-        subs2
-        (Just Dict.empty)
+        (variable "b2")
+
+
+u1 : Maybe Substitutions
+u1 =
+    unify aORb a1ANDa2_ORb2
+
+
+u2 : Maybe Substitutions
+u2 =
+    unify aORb a3ANDa4_ORb
+
+
+t : Maybe Type
+t =
+    Maybe.andThen2 mergeSubstitutions u1 u2
+        |> Maybe.map represent
+        |> Maybe.andMap (Just aORb)
