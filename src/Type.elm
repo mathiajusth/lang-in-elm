@@ -1,6 +1,7 @@
 module Type exposing
     ( Type(..), variable, and, or, unify, represent
     , a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
+    , Substitutions
     )
 
 {-| tralala.
@@ -8,7 +9,7 @@ module Type exposing
 
 # Export
 
-@docs Type, variable, and, or, unify, represent
+@docs Type, variable, and, or, unify, represent, Substitution
 
 
 # Testing

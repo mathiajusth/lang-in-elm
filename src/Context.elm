@@ -1,7 +1,6 @@
 module Context exposing (..)
 
 import AssocList as Dict exposing (Dict)
-import Data.Dict.Extra as Dict
 import Data.Symbol as Symbol
 import Type exposing (Type)
 import Value
@@ -21,56 +20,51 @@ singleton assignment =
     addUnsafelly assignment empty
 
 
-addUnsafelly : { valueSymbol : Value.Symbol, type_ : Type } -> Context -> Context
-addUnsafelly { valueSymbol, type_ } context =
-    -- rewrites the type if valueSymbol is already assigned to in the context
-    Dict.insert valueSymbol type_ context
-
-
-add : { valueSymbol : Value.Symbol, type_ : Type } -> Context -> Maybe Context
-add assignment context =
-    merge
-        (singleton assignment)
-        context
-
-
-merge : Context -> Context -> Maybe Context
-merge =
+merge : Context -> Context -> Maybe ( Context, Type.Substitutions )
+merge context1 context2 =
     -- unsafely (doesn't check for cycles)
-    {- non-associative i.e.
-
-         (C1 + C2) + C3 /= C1 + (C2 + C3)
-
-       that is because we are not keeping the Substitutions that result from Type.unify
-
-       Concrete example :
-          a)
-               ({ a : A1 } + { a : A2 }) + { a : A1 or B }
-            ~> ({ a : A2 }             ) + { a : A1 or B }
-            ~> { a : A1 or b }
-          b)
-               { a : A1 } + ({ a : A2 } + { a : A1 or B })
-            ~> { a : A1 } + ({ a : A1 or B }             )
-            ~> CYCLES (because of Type.findQuotientRepresentative)
-    -}
-    Dict.mergeWithPossibleFailOnConflict
-        (\symbol type1 type2 accCtx ->
+    Dict.merge
+        (\symbol type_ ->
             Maybe.map
-                (\type1Withtype2Subs ->
-                    accCtx
-                        |> Dict.insert symbol type1
-                        |> Dict.map
-                            (\_ type_ ->
-                                type_
-                                    |> Type.represent type1Withtype2Subs
+                (\( accCtx, accSubs ) ->
+                    ( Dict.insert symbol type_ accCtx, accSubs )
+                )
+        )
+        (\symbol type1 type2 ->
+            Maybe.andThen
+                (\( accCtx, accSubs ) ->
+                    Type.unify type1 type2
+                        |> Maybe.andThen
+                            (\type1Withtype2Substitutions ->
+                                Type.mergeSubstitutions type1Withtype2Substitutions accSubs
+                                    |> Maybe.map
+                                        (\mergedSubstitutions ->
+                                            ( accCtx |> Dict.insert symbol type1
+                                            , mergedSubstitutions
+                                            )
+                                        )
                             )
                 )
-                (Type.unify type1 type2)
         )
+        (\symbol type_ ->
+            Maybe.map
+                (\( accCtx, accSubs ) ->
+                    ( Dict.insert symbol type_ accCtx, accSubs )
+                )
+        )
+        context1
+        context2
+        (Just ( Dict.empty, Dict.empty ))
 
 
 
 -- Testing
+
+
+addUnsafelly : { valueSymbol : Value.Symbol, type_ : Type } -> Context -> Context
+addUnsafelly { valueSymbol, type_ } context =
+    -- rewrites the type if valueSymbol is already assigned to in the context
+    Dict.insert valueSymbol type_ context
 
 
 addTrivial : String -> String -> Context -> Context
