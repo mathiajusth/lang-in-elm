@@ -31,6 +31,7 @@ module Data.Set.Internal
     , removeOrFail
     , removeOrIdentity
     , singleton
+    , toElmSet
     , unpack
     )
 
@@ -56,6 +57,7 @@ module Data.Set.Internal
 
 import List.Nonempty as NonemptyList
 import Maybe.Extra as Maybe
+import Set as ElmSet
 
 
 
@@ -266,6 +268,16 @@ unpack defaultForEmpty fromNonempty set =
 
         Nonempty nonempty ->
             fromNonempty nonempty
+
+
+toElmSet : Set comparable -> ElmSet.Set comparable
+toElmSet =
+    unpack
+        ElmSet.empty
+        (\(NonemptySet nonemptyList) ->
+            NonemptyList.toList nonemptyList
+                |> ElmSet.fromList
+        )
 
 
 

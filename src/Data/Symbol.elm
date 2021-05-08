@@ -3,6 +3,7 @@ module Data.Symbol exposing
     , compare
     , equals
     , fromString
+    , toString
     )
 
 import Data.Comparison as Comparison exposing (Comparison)
@@ -32,3 +33,8 @@ compare (Symbol string1) (Symbol string2) =
 fromString : String -> Symbol a
 fromString string =
     Symbol string
+
+
+toString : Symbol a -> String
+toString (Symbol string) =
+    string

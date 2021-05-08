@@ -1,5 +1,5 @@
 module Type exposing
-    ( Type(..), variable, and, or, unify, represent
+    ( Type(..), variable, and, or, unify, represent, parse, toString
     , a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
     , Substitutions
     )
@@ -9,7 +9,7 @@ module Type exposing
 
 # Export
 
-@docs Type, variable, and, or, unify, represent, Substitution
+@docs Type, variable, and, or, unify, represent, Substitution, parse, toString
 
 
 # Testing
@@ -24,6 +24,7 @@ import Data.Dict.Extra as Dict
 import Data.Set as Set exposing (Set)
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
+import Parser exposing ((|.), (|=), Parser)
 
 
 
@@ -155,6 +156,86 @@ mergeSubstitutions =
                             )
                     )
         )
+
+
+
+-- Parser
+
+
+parse : String -> Result (List Parser.DeadEnd) Type
+parse =
+    Parser.run parser
+
+
+toString : Type -> String
+toString type_ =
+    case type_ of
+        Variable symbol ->
+            Symbol.toString symbol
+
+        Or left right ->
+            [ "("
+            , toString left
+            , "|"
+            , toString right
+            , ")"
+            ]
+                |> String.join " "
+
+        And left right ->
+            [ "("
+            , toString left
+            , ","
+            , toString right
+            , ")"
+            ]
+                |> String.join " "
+
+
+parser : Parser Type
+parser =
+    let
+        leaf : Parser Type
+        leaf =
+            Parser.variable
+                { start = Char.isAlphaNum
+                , inner = \c -> Char.isAlphaNum c || c == '_'
+                , reserved =
+                    [--   "let"
+                     -- , "in"
+                     -- , "case"
+                     -- , "of"
+                    ]
+                        |> Set.fromList
+                        |> Set.toElmSet
+                }
+                |> Parser.map variable
+
+        operator : Parser (Type -> Type -> Type)
+        operator =
+            Parser.oneOf
+                [ Parser.succeed and
+                    |. Parser.symbol ","
+                , Parser.succeed or
+                    |. Parser.symbol "|"
+                ]
+    in
+    Parser.oneOf
+        [ leaf
+        , Parser.succeed
+            (\leftVar op rightVar ->
+                op leftVar rightVar
+            )
+            |. Parser.symbol "("
+            |. Parser.spaces
+            |= Parser.lazy (\_ -> parser)
+            |. Parser.spaces
+            |= operator
+            |. Parser.spaces
+            |= Parser.lazy (\_ -> parser)
+            |. Parser.spaces
+            |. Parser.symbol ")"
+        ]
 
 
 

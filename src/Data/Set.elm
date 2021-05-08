@@ -16,6 +16,7 @@ module Data.Set exposing
     , singleton
     , size
     , symmetricDifference
+    , toElmSet
     , toList
     , toggle
     , union
@@ -26,6 +27,7 @@ import Data.Set.Internal as InternalSet exposing (NonemptyList)
 import Data.Set.Nonempty as NonemptySet
 import List.Extra as List
 import Maybe.Extra as Maybe
+import Set as ElmSet
 
 
 
@@ -104,6 +106,11 @@ fromNonemptyList =
 
 
 -- Descutrcors
+
+
+toElmSet : Set comparable -> ElmSet.Set comparable
+toElmSet =
+    InternalSet.toElmSet
 
 
 unpack : b -> (Nonempty a -> b) -> Set a -> b
