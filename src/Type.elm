@@ -73,20 +73,20 @@ realizeSubstitutions substitutions =
             |> Maybe.withDefault (Variable symbol)
 
 
-substitute : Substitutions -> (Type -> Type)
-substitute =
+shallowSubstitute : Substitutions -> (Type -> Type)
+shallowSubstitute =
     realizeSubstitutions >> map
 
 
 represent : Substitutions -> Type -> Type
 represent substitutions originalType =
-    substitute substitutions originalType
+    shallowSubstitute substitutions originalType
         |> (\newType ->
                 if newType == originalType then
                     newType
 
                 else
-                    substitute substitutions newType
+                    shallowSubstitute substitutions newType
            )
 
 
@@ -144,18 +144,23 @@ unify type1 type2 =
 
 mergeSubstitutions : Substitutions -> Substitutions -> Maybe Substitutions
 mergeSubstitutions =
-    Dict.mergeWithPossibleFailOnConflict
-        (\symbol type1 type2 accumulatedSubstitutions ->
-            unify type1 type2
-                |> Maybe.andThen
-                    (\type1Withtype2Substitutions ->
-                        mergeSubstitutions
-                            accumulatedSubstitutions
-                            (type1Withtype2Substitutions
-                                |> Dict.insert symbol type1
-                            )
-                    )
-        )
+    Dict.binaryFallibleFold
+        { initial = Dict.empty
+        , onOneKeyMatch =
+            \symbol type_ substitutions ->
+                Just <| Dict.insert symbol type_ substitutions
+        , onBothKeyMatch =
+            \symbol type1 type2 substitutions ->
+                unify type1 type2
+                    |> Maybe.andThen
+                        (\type1Withtype2Substitutions ->
+                            mergeSubstitutions
+                                substitutions
+                                (type1Withtype2Substitutions
+                                    |> Dict.insert symbol type1
+                                )
+                        )
+        }
 
 
 
@@ -164,7 +169,10 @@ mergeSubstitutions =
 
 parse : String -> Result (List Parser.DeadEnd) Type
 parse =
-    Parser.run parser
+    Parser.run
+        (parser
+            |. Parser.end
+        )
 
 
 toString : Type -> String

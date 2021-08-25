@@ -1,24 +1,45 @@
-module Data.Dict.Extra exposing (mergeWithPossibleFailOnConflict)
+module Data.Dict.Extra exposing (binaryFallibleFold, binaryFold)
 
 import AssocList as Dict exposing (Dict)
 
 
-mergeWithPossibleFailOnConflict : (k -> v -> v -> Dict k v -> Maybe (Dict k v)) -> Dict k v -> Dict k v -> Maybe (Dict k v)
-mergeWithPossibleFailOnConflict conflictResolver dict1 dict2 =
+binaryFold :
+    { initial : result
+    , onOneKeyMatch : key -> value -> result -> result
+    , onBothKeyMatch : key -> value -> value -> result -> result
+    }
+    -> Dict key value
+    -> Dict key value
+    -> result
+binaryFold { initial, onBothKeyMatch, onOneKeyMatch } left right =
     Dict.merge
-        (\k v ->
-            Maybe.map (Dict.insert k v)
+        onOneKeyMatch
+        onBothKeyMatch
+        onOneKeyMatch
+        left
+        right
+        initial
+
+
+binaryFallibleFold :
+    { initial : result
+    , onBothKeyMatch : key -> value -> value -> result -> Maybe result
+    , onOneKeyMatch : key -> value -> result -> Maybe result
+    }
+    -> Dict key value
+    -> Dict key value
+    -> Maybe result
+binaryFallibleFold { initial, onBothKeyMatch, onOneKeyMatch } left right =
+    Dict.merge
+        (\key value ->
+            Maybe.andThen (onOneKeyMatch key value)
         )
-        (\k v1 v2 accumulatedMaybeDict ->
-            Maybe.andThen
-                (\accDict ->
-                    conflictResolver k v1 v2 accDict
-                )
-                accumulatedMaybeDict
+        (\key value1 value2 ->
+            Maybe.andThen (onBothKeyMatch key value1 value2)
         )
-        (\symbol type_ ->
-            Maybe.map (Dict.insert symbol type_)
+        (\key value ->
+            Maybe.andThen (onOneKeyMatch key value)
         )
-        dict1
-        dict2
-        (Just Dict.empty)
+        left
+        right
+        (Just initial)

@@ -1,13 +1,19 @@
 module Context exposing (..)
 
 import AssocList as Dict exposing (Dict)
+import Data.Dict.Extra as Dict
 import Data.Symbol as Symbol
+import Maybe.Extra as Maybe
 import Type exposing (Type)
 import Value
 
 
 type alias Context =
     Dict Value.Symbol Type
+
+
+type alias ContextQuotient =
+    { context : Context, substitutions : Type.Substitutions }
 
 
 empty : Context
@@ -20,45 +26,47 @@ singleton assignment =
     addUnsafelly assignment empty
 
 
-merge : Context -> Context -> Maybe ( Context, Type.Substitutions )
-merge context1 context2 =
-    -- unsafely (doesn't check for cycles)
-    Dict.merge
-        (\symbol type_ ->
+quotientMerge : ContextQuotient -> ContextQuotient -> Maybe ContextQuotient
+quotientMerge contextQuotient1 contextQuotient2 =
+    Maybe.andThen2
+        (\mergedContextQuotient mergedSubstitutions ->
             Maybe.map
-                (\( accCtx, accSubs ) ->
-                    ( Dict.insert symbol type_ accCtx, accSubs )
+                (\allMergedSubstitutions ->
+                    { context = mergedContextQuotient.context
+                    , substitutions = allMergedSubstitutions
+                    }
                 )
+                (Type.mergeSubstitutions mergedContextQuotient.substitutions mergedSubstitutions)
         )
-        (\symbol type1 type2 ->
-            Maybe.andThen
-                (\( accCtx, accSubs ) ->
-                    Type.unify type1 type2
-                        |> Maybe.andThen
-                            (\type1Withtype2Substitutions ->
-                                Type.mergeSubstitutions type1Withtype2Substitutions accSubs
-                                    |> Maybe.map
-                                        (\mergedSubstitutions ->
-                                            ( accCtx |> Dict.insert symbol type1
-                                            , mergedSubstitutions
-                                            )
-                                        )
-                            )
-                )
-        )
-        (\symbol type_ ->
-            Maybe.map
-                (\( accCtx, accSubs ) ->
-                    ( Dict.insert symbol type_ accCtx, accSubs )
-                )
-        )
-        context1
-        context2
-        (Just ( Dict.empty, Dict.empty ))
+        (merge contextQuotient1.context contextQuotient2.context)
+        (Type.mergeSubstitutions contextQuotient1.substitutions contextQuotient2.substitutions)
 
 
-
--- Testing
+merge : Context -> Context -> Maybe ContextQuotient
+merge =
+    Dict.binaryFallibleFold
+        { initial =
+            { context = Dict.empty
+            , substitutions = Dict.empty
+            }
+        , onOneKeyMatch =
+            \symbol type_ contextQuotient ->
+                Just
+                    { contextQuotient | context = Dict.insert symbol type_ contextQuotient.context }
+        , onBothKeyMatch =
+            \symbol type1 type2 contextQuotient ->
+                Type.unify type1 type2
+                    |> Maybe.andThen
+                        (\type1Withtype2Substitutions ->
+                            Type.mergeSubstitutions type1Withtype2Substitutions contextQuotient.substitutions
+                                |> Maybe.map
+                                    (\mergedSubstitutions ->
+                                        { context = contextQuotient.context |> Dict.insert symbol type1
+                                        , substitutions = mergedSubstitutions
+                                        }
+                                    )
+                        )
+        }
 
 
 addUnsafelly : { valueSymbol : Value.Symbol, type_ : Type } -> Context -> Context
