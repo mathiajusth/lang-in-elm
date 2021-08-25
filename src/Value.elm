@@ -1,9 +1,11 @@
 module Value exposing
     ( Symbol
-    , Value
+    , Value(..)
     , left
     , right
     , tuple
+    , v1
+    , v2
     , variable
     )
 
@@ -48,3 +50,17 @@ right =
 
 tuple =
     Tuple
+
+
+
+-- Testing
+
+
+v1 : Value
+v1 =
+    tuple (left (variable "a")) (tuple (variable "b") (right (variable "c")))
+
+
+v2 : Value
+v2 =
+    tuple (left (variable "a")) (tuple (variable "b") (right (variable "a")))

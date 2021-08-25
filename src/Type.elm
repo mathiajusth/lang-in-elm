@@ -1,7 +1,7 @@
 module Type exposing
     ( Type(..), variable, and, or, unify, represent, parse, toString
     , a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
-    , Substitutions
+    , Substitutions, normalize
     )
 
 {-| tralala.
@@ -23,6 +23,7 @@ import Data.Comparison as Comparison
 import Data.Dict.Extra as Dict
 import Data.Set as Set exposing (Set)
 import Data.Symbol as Symbol
+import List.Extra as List
 import Maybe.Extra as Maybe
 import Parser exposing ((|.), (|=), Parser)
 
@@ -47,6 +48,19 @@ type TypeSymbolTag
 
 type alias Substitutions =
     Dict Symbol Type
+
+
+toSymbolList : Type -> List Symbol
+toSymbolList type_ =
+    case type_ of
+        Variable symbol ->
+            [ symbol ]
+
+        Or leftType rightType ->
+            toSymbolList leftType ++ toSymbolList rightType
+
+        And leftType rightType ->
+            toSymbolList leftType ++ toSymbolList rightType
 
 
 
@@ -88,6 +102,29 @@ represent substitutions originalType =
                 else
                     shallowSubstitute substitutions newType
            )
+
+
+normalize : Type -> Type
+normalize type_ =
+    let
+        uniqueSumbols : List Symbol
+        uniqueSumbols =
+            type_
+                |> toSymbolList
+                |> List.map Symbol.toString
+                -- TODO implement List.unique with for any type
+                |> List.unique
+                |> List.map Symbol.fromString
+
+        simplifyingSubstitutions : Substitutions
+        simplifyingSubstitutions =
+            List.zip uniqueSumbols
+                (List.range 1 (List.length uniqueSumbols)
+                    |> List.map (String.fromInt >> variable)
+                )
+                |> Dict.fromList
+    in
+    represent simplifyingSubstitutions type_
 
 
 variable : String -> Type

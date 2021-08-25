@@ -12,7 +12,7 @@ type alias Context =
     Dict Value.Symbol Type
 
 
-type alias ContextQuotient =
+type alias Quotient =
     { context : Context, substitutions : Type.Substitutions }
 
 
@@ -26,23 +26,30 @@ singleton assignment =
     addUnsafelly assignment empty
 
 
-quotientMerge : ContextQuotient -> ContextQuotient -> Maybe ContextQuotient
+qutientSingletion : { valueSymbol : Value.Symbol, type_ : Type } -> Quotient
+qutientSingletion { valueSymbol, type_ } =
+    { context = Dict.singleton valueSymbol type_
+    , substitutions = Dict.empty
+    }
+
+
+quotientMerge : Quotient -> Quotient -> Maybe Quotient
 quotientMerge contextQuotient1 contextQuotient2 =
     Maybe.andThen2
-        (\mergedContextQuotient mergedSubstitutions ->
+        (\mergedQuotient mergedSubstitutions ->
             Maybe.map
                 (\allMergedSubstitutions ->
-                    { context = mergedContextQuotient.context
+                    { context = mergedQuotient.context
                     , substitutions = allMergedSubstitutions
                     }
                 )
-                (Type.mergeSubstitutions mergedContextQuotient.substitutions mergedSubstitutions)
+                (Type.mergeSubstitutions mergedQuotient.substitutions mergedSubstitutions)
         )
         (merge contextQuotient1.context contextQuotient2.context)
         (Type.mergeSubstitutions contextQuotient1.substitutions contextQuotient2.substitutions)
 
 
-merge : Context -> Context -> Maybe ContextQuotient
+merge : Context -> Context -> Maybe Quotient
 merge =
     Dict.binaryFallibleFold
         { initial =
