@@ -3,9 +3,8 @@ module Value exposing
     , Value(..)
     , left
     , right
+    , testing
     , tuple
-    , v1
-    , v2
     , variable
     )
 
@@ -21,6 +20,7 @@ type Value
     | Left Value
     | Right Value
     | Tuple Value Value
+    | Lambda Symbol Value
 
 
 type alias Symbol =
@@ -52,15 +52,21 @@ tuple =
     Tuple
 
 
+labmda =
+    Lambda
+
+
 
 -- Testing
 
 
-v1 : Value
-v1 =
-    tuple (left (variable "a")) (tuple (variable "b") (right (variable "c")))
-
-
-v2 : Value
-v2 =
-    tuple (left (variable "a")) (tuple (variable "b") (right (variable "a")))
+testing =
+    { v1 =
+        tuple (left (variable "a")) (tuple (variable "b") (right (variable "c")))
+    , v2 =
+        tuple (left (variable "a")) (tuple (variable "b") (right (variable "a")))
+    , v3 =
+        labmda (Symbol.fromString "x") (variable "0")
+    , v4 =
+        labmda (Symbol.fromString "x") (variable "x")
+    }

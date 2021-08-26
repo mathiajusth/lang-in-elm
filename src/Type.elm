@@ -36,6 +36,7 @@ type Type
     = Variable Symbol
     | Or Type Type
     | And Type Type
+    | Arrow Type Type
 
 
 type alias Symbol =
@@ -62,6 +63,9 @@ toSymbolList type_ =
         And leftType rightType ->
             toSymbolList leftType ++ toSymbolList rightType
 
+        Arrow leftType rightType ->
+            toSymbolList leftType ++ toSymbolList rightType
+
 
 
 -- Helpers
@@ -78,6 +82,9 @@ map expandLeaf type_ =
 
         And typeLeft typeRight ->
             And (map expandLeaf typeLeft) (map expandLeaf typeRight)
+
+        Arrow typeLeft typeRight ->
+            Arrow (map expandLeaf typeLeft) (map expandLeaf typeRight)
 
 
 realizeSubstitutions : Substitutions -> (Symbol -> Type)
@@ -140,6 +147,10 @@ and =
     And
 
 
+arrow =
+    Arrow
+
+
 unify : Type -> Type -> Maybe Substitutions
 unify type1 type2 =
     -- TODO try to write based on type constructor equality ~> if they are the same you match the correponding branches
@@ -175,6 +186,16 @@ unify type1 type2 =
             Nothing
 
         ( And type1Left type1Right, And type2Left type2Right ) ->
+            Maybe.map2 mergeSubstitutions (unify type1Left type2Left) (unify type1Right type2Right)
+                |> Maybe.join
+
+        ( And _ _, _ ) ->
+            Nothing
+
+        ( _, And _ _ ) ->
+            Nothing
+
+        ( Arrow type1Left type1Right, Arrow type2Left type2Right ) ->
             Maybe.map2 mergeSubstitutions (unify type1Left type2Left) (unify type1Right type2Right)
                 |> Maybe.join
 
@@ -236,6 +257,15 @@ toString type_ =
             ]
                 |> String.join " "
 
+        Arrow left right ->
+            [ "("
+            , toString left
+            , "->"
+            , toString right
+            , ")"
+            ]
+                |> String.join " "
+
 
 parser : Parser Type
 parser =
@@ -263,6 +293,8 @@ parser =
                     |. Parser.symbol ","
                 , Parser.succeed or
                     |. Parser.symbol "|"
+                , Parser.succeed arrow
+                    |. Parser.symbol "->"
                 ]
     in
     Parser.oneOf

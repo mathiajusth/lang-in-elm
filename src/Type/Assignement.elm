@@ -1,6 +1,8 @@
 module Type.Assignement exposing (..)
 
+import AssocList as Dict exposing (Dict)
 import Context exposing (Context)
+import Data.Dict.Extra as Dict
 import Maybe.Extra as Maybe
 import Type exposing (Type)
 import Value exposing (Value)
@@ -67,3 +69,28 @@ inferHelp variablePrefix value =
                 )
                 (inferHelp (variablePrefix ++ "L-prod ") leftValue)
                 (inferHelp (variablePrefix ++ "R-prod ") rightValue)
+
+        Value.Lambda symbol body ->
+            Maybe.map
+                (\bodyInferred ->
+                    Maybe.unwrap
+                        { contextQuotient = bodyInferred.contextQuotient
+                        , assignedType =
+                            Type.Arrow (Type.variable <| variablePrefix ++ "_lambda") bodyInferred.assignedType
+                        }
+                        (\symbolType ->
+                            { contextQuotient =
+                                let
+                                    oldContextQuotient =
+                                        bodyInferred.contextQuotient
+                                in
+                                { oldContextQuotient
+                                    | context =
+                                        Dict.remove symbol oldContextQuotient.context
+                                }
+                            , assignedType = Type.Arrow symbolType bodyInferred.assignedType
+                            }
+                        )
+                        (Dict.get symbol <| bodyInferred.contextQuotient.context)
+                )
+                (inferHelp (variablePrefix ++ "F ") body)
