@@ -1,7 +1,7 @@
 module Type exposing
     ( Type(..), variable, and, or, unify, represent, parse, toString
     , a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
-    , Substitutions, normalize
+    , Substitutions, Symbol, normalize, toSymbolList
     )
 
 {-| tralala.

@@ -4,6 +4,7 @@ module Value exposing
     , left
     , right
     , testing
+    , toString
     , tuple
     , variable
     )
@@ -17,10 +18,16 @@ import Data.Symbol as Symbol
 
 type Value
     = Variable Symbol
+      -- Sum
     | Left Value
     | Right Value
+      -- Product
     | Tuple Value Value
+    | ProjLeft Value
+    | ProjRight Value
+      -- Function
     | Lambda Symbol Value
+    | Application Value Value
 
 
 type alias Symbol =
@@ -33,6 +40,34 @@ type ValueSymbolTag
 
 
 -- Helpers
+
+
+toString : Value -> String
+toString value =
+    case value of
+        Variable symbol ->
+            Symbol.toString symbol
+
+        Left leftValue ->
+            "Left " ++ toString leftValue
+
+        Right rightValue ->
+            "Right " ++ toString rightValue
+
+        Tuple leftValue rightValue ->
+            "( " ++ toString leftValue ++ " , " ++ toString rightValue ++ " )"
+
+        ProjLeft innerValue ->
+            "fst " ++ toString innerValue
+
+        ProjRight innerValue ->
+            "snd " ++ toString innerValue
+
+        Lambda symbol body ->
+            "\\" ++ Symbol.toString symbol ++ ". " ++ toString body
+
+        Application f x ->
+            "[" ++ toString f ++ " " ++ toString x ++ "]"
 
 
 variable : String -> Value
@@ -52,8 +87,12 @@ tuple =
     Tuple
 
 
-labmda =
+lambda =
     Lambda
+
+
+app =
+    Application
 
 
 
@@ -66,7 +105,29 @@ testing =
     , v2 =
         tuple (left (variable "a")) (tuple (variable "b") (right (variable "a")))
     , v3 =
-        labmda (Symbol.fromString "x") (variable "0")
+        lambda (Symbol.fromString "x") (variable "0")
     , v4 =
-        labmda (Symbol.fromString "x") (variable "x")
+        lambda (Symbol.fromString "x") (variable "x")
+    , v5 =
+        app
+            (lambda
+                (Symbol.fromString "x")
+                (tuple (variable "x") (variable "x"))
+            )
+            (variable "y")
+    , v6 =
+        lambda (Symbol.fromString "f")
+            (lambda
+                (Symbol.fromString "x")
+                (app (variable "f") (variable "x"))
+            )
+    , v61 =
+        lambda
+            (Symbol.fromString "x")
+            (app (variable "f") (variable "x"))
+    , v62 =
+        app (variable "f") (variable "x")
+    , v7 = ProjLeft (variable "x")
+    , v8 = ProjLeft (tuple (variable "x") (variable "y"))
+    , v9 = ProjLeft (left (variable "x"))
     }

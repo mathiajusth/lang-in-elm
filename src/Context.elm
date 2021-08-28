@@ -16,6 +16,11 @@ type alias Quotient =
     { context : Context, substitutions : Type.Substitutions }
 
 
+representQuotient : Quotient -> Context
+representQuotient contextQuotient =
+    map (Type.represent contextQuotient.substitutions) contextQuotient.context
+
+
 empty : Context
 empty =
     Dict.empty
@@ -24,6 +29,11 @@ empty =
 singleton : { valueSymbol : Value.Symbol, type_ : Type } -> Context
 singleton assignment =
     addUnsafelly assignment empty
+
+
+map : (Type -> Type) -> Context -> Context
+map mapType =
+    Dict.map (always mapType)
 
 
 qutientSingletion : { valueSymbol : Value.Symbol, type_ : Type } -> Quotient
