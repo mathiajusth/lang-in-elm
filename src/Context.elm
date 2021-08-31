@@ -1,4 +1,4 @@
-module Context exposing (..)
+module Context exposing (Context, empty, mapTypes, merge, singleton)
 
 import AssocList as Dict exposing (Dict)
 import Data.Dict.Extra as Dict
@@ -8,59 +8,35 @@ import Type exposing (Type)
 import Value
 
 
-type alias Context =
+type Context
+    = Context Implementation
+
+
+type alias Implementation =
     Dict Value.Symbol Type
-
-
-type alias Quotient =
-    { context : Context, substitutions : Type.Substitutions }
-
-
-representQuotient : Quotient -> Context
-representQuotient contextQuotient =
-    map (Type.represent contextQuotient.substitutions) contextQuotient.context
 
 
 empty : Context
 empty =
     Dict.empty
+        |> Context
 
 
-singleton : { valueSymbol : Value.Symbol, type_ : Type } -> Context
-singleton assignment =
-    addUnsafelly assignment empty
+singleton : Value.Symbol -> Type -> Context
+singleton symbol type_ =
+    Dict.empty
+        |> Dict.insert symbol type_
+        |> Context
 
 
-map : (Type -> Type) -> Context -> Context
-map mapType =
-    Dict.map (always mapType)
+mapTypes : (Type -> Type) -> Context -> Context
+mapTypes mapType (Context context) =
+    Dict.map (always mapType) context
+        |> Context
 
 
-qutientSingletion : { valueSymbol : Value.Symbol, type_ : Type } -> Quotient
-qutientSingletion { valueSymbol, type_ } =
-    { context = Dict.singleton valueSymbol type_
-    , substitutions = Dict.empty
-    }
-
-
-quotientMerge : Quotient -> Quotient -> Maybe Quotient
-quotientMerge contextQuotient1 contextQuotient2 =
-    Maybe.andThen2
-        (\mergedQuotient mergedSubstitutions ->
-            Maybe.map
-                (\allMergedSubstitutions ->
-                    { context = mergedQuotient.context
-                    , substitutions = allMergedSubstitutions
-                    }
-                )
-                (Type.mergeSubstitutions mergedQuotient.substitutions mergedSubstitutions)
-        )
-        (merge contextQuotient1.context contextQuotient2.context)
-        (Type.mergeSubstitutions contextQuotient1.substitutions contextQuotient2.substitutions)
-
-
-merge : Context -> Context -> Maybe Quotient
-merge =
+merge : Context -> Context -> Maybe { context : Context, substitutions : Type.Substitutions }
+merge (Context context1) (Context context2) =
     Dict.binaryFallibleFold
         { initial =
             { context = Dict.empty
@@ -84,52 +60,11 @@ merge =
                                     )
                         )
         }
-
-
-addUnsafelly : { valueSymbol : Value.Symbol, type_ : Type } -> Context -> Context
-addUnsafelly { valueSymbol, type_ } context =
-    -- rewrites the type if valueSymbol is already assigned to in the context
-    Dict.insert valueSymbol type_ context
-
-
-addTrivial : String -> String -> Context -> Context
-addTrivial =
-    \valueSymbolName typeName ->
-        addUnsafelly
-            { valueSymbol = Symbol.fromString valueSymbolName
-            , type_ = Type.variable typeName
-            }
-
-
-addNontrivial : String -> Type -> Context -> Context
-addNontrivial =
-    \valueSymbolName type_ ->
-        addUnsafelly
-            { valueSymbol = Symbol.fromString valueSymbolName
-            , type_ = type_
-            }
-
-
-orTrivial : String -> String -> Type
-orTrivial string1 string2 =
-    Type.or
-        (Type.variable string1)
-        (Type.variable string2)
-
-
-ctx1 : Context
-ctx1 =
-    empty
-        |> addTrivial "a" "A"
-
-
-ctx2 : Context
-ctx2 =
-    empty
-        |> addTrivial "b" "B"
-
-
-ctx3 : Context
-ctx3 =
-    empty
-        |> addNontrivial "a" (orTrivial "A" "B")
+        context1
+        context2
+        |> Maybe.map
+            (\{ context, substitutions } ->
+                { context = Context context
+                , substitutions = substitutions
+                }
+            )

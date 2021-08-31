@@ -1,7 +1,8 @@
 module Type.Assignement exposing (..)
 
 import AssocList as Dict exposing (Dict)
-import Context exposing (Context)
+import Context as Context exposing (Context)
+import Context.Quotient
 import Data.Dict.Extra as Dict
 import Data.Symbol as Symbol
 import List.Extra as List
@@ -10,68 +11,18 @@ import Type exposing (Type)
 import Value exposing (Value)
 
 
-type alias Contextual =
-    { contextQuotient : Context.Quotient
+type alias Assignement =
+    { contextQuotient : Context.Quotient.Quotient
     , assignedType : Type
     }
 
 
-normalize : Contextual -> { context : Context, assignedType : Type }
-normalize { assignedType, contextQuotient } =
-    let
-        representedAssignedType =
-            assignedType
-                |> Type.represent contextQuotient.substitutions
-
-        uniqueSumbols : List Type.Symbol
-        uniqueSumbols =
-            representedAssignedType
-                |> Type.toSymbolList
-                |> List.map Symbol.toString
-                -- TODO implement List.unique with for any type
-                |> List.unique
-                |> List.map Symbol.fromString
-
-        simplifyingSubstitutions : Type.Substitutions
-        simplifyingSubstitutions =
-            List.zip uniqueSumbols
-                (List.range 97 (97 + List.length uniqueSumbols)
-                    |> List.map (Char.fromCode >> String.fromChar >> Type.variable)
-                )
-                |> Dict.fromList
-    in
-    { context =
-        contextQuotient.context
-            |> Context.map
-                (Type.represent contextQuotient.substitutions
-                    >> Type.represent simplifyingSubstitutions
-                )
-    , assignedType =
-        representedAssignedType
-            |> Type.represent simplifyingSubstitutions
-    }
-
-
-infer : Value -> Maybe Contextual
+infer : Value -> Maybe Assignement
 infer =
     inferHelp ""
 
 
-inferNice : Value -> Maybe { value : String, assignedType : Type, context : Context }
-inferNice value =
-    value
-        |> infer
-        |> Maybe.map normalize
-        |> Maybe.map
-            (\{ assignedType, context } ->
-                { value = Value.toString value
-                , assignedType = assignedType
-                , context = context
-                }
-            )
-
-
-inferHelp : String -> Value -> Maybe Contextual
+inferHelp : String -> Value -> Maybe Assignement
 inferHelp variablePrefix value =
     case value of
         Value.Variable symbol ->
@@ -82,10 +33,9 @@ inferHelp variablePrefix value =
             in
             Just
                 { contextQuotient =
-                    Context.qutientSingletion
-                        { valueSymbol = symbol
-                        , type_ = newType
-                        }
+                    Context.Quotient.singleton
+                        symbol
+                        newType
                 , assignedType = newType
                 }
 
@@ -110,7 +60,7 @@ inferHelp variablePrefix value =
         Value.Tuple leftValue rightValue ->
             Maybe.andThen2
                 (\leftProdInferred rightProdInferred ->
-                    Context.quotientMerge leftProdInferred.contextQuotient rightProdInferred.contextQuotient
+                    Context.Quotient.merge leftProdInferred.contextQuotient rightProdInferred.contextQuotient
                         |> Maybe.map
                             (\mergedContextQuotients ->
                                 { contextQuotient = mergedContextQuotients
@@ -198,8 +148,7 @@ inferHelp variablePrefix value =
         Value.Application lambdaValue argumentValue ->
             Maybe.andThen2
                 (\functionInferred argumentInferred ->
-                    Context.quotientMerge functionInferred.contextQuotient argumentInferred.contextQuotient
-                        |> Debug.log "..."
+                    Context.Quotient.merge functionInferred.contextQuotient argumentInferred.contextQuotient
                         |> Maybe.andThen
                             (\newContextQuotients ->
                                 let
@@ -222,3 +171,53 @@ inferHelp variablePrefix value =
                 )
                 (inferHelp (variablePrefix ++ "function ") lambdaValue)
                 (inferHelp (variablePrefix ++ "argument ") argumentValue)
+
+
+normalize : Assignement -> { context : Context, assignedType : Type }
+normalize { assignedType, contextQuotient } =
+    let
+        representedAssignedType =
+            assignedType
+                |> Type.represent contextQuotient.substitutions
+
+        uniqueSumbols : List Type.Symbol
+        uniqueSumbols =
+            representedAssignedType
+                |> Type.toSymbolList
+                |> List.map Symbol.toString
+                -- TODO implement List.unique with for any type
+                |> List.unique
+                |> List.map Symbol.fromString
+
+        simplifyingSubstitutions : Type.Substitutions
+        simplifyingSubstitutions =
+            List.zip uniqueSumbols
+                (List.range 97 (97 + List.length uniqueSumbols)
+                    |> List.map (Char.fromCode >> String.fromChar >> Type.variable)
+                )
+                |> Dict.fromList
+    in
+    { context =
+        contextQuotient.context
+            |> Context.mapTypes
+                (Type.represent contextQuotient.substitutions
+                    >> Type.represent simplifyingSubstitutions
+                )
+    , assignedType =
+        representedAssignedType
+            |> Type.represent simplifyingSubstitutions
+    }
+
+
+inferNice : Value -> Maybe { value : String, assignedType : Type, context : Context }
+inferNice value =
+    value
+        |> infer
+        |> Maybe.map normalize
+        |> Maybe.map
+            (\{ assignedType, context } ->
+                { value = Value.toString value
+                , assignedType = assignedType
+                , context = context
+                }
+            )
