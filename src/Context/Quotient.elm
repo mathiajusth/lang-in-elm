@@ -5,17 +5,18 @@ import Context exposing (Context)
 import Data.Dict.Extra as Dict
 import Maybe.Extra as Maybe
 import Type exposing (Type)
+import Type.Substitutions exposing (Substitutions)
 import Value
 
 
 type Quotient
-    = Quotient { context : Context, substitutions : Type.Substitutions }
+    = Quotient { context : Context, substitutions : Substitutions }
 
 
 represent : Quotient -> Context
 represent (Quotient { context, substitutions }) =
     Context.mapTypes
-        (Type.represent substitutions)
+        (Type.Substitutions.represent substitutions)
         context
 
 
@@ -37,8 +38,8 @@ merge (Quotient quotient1) (Quotient quotient2) =
                     , substitutions = allMergedSubstitutions
                     }
                 )
-                (Type.mergeSubstitutions mergedContexts.substitutions mergedSubstitutions)
+                (Type.Substitutions.merge mergedContexts.substitutions mergedSubstitutions)
         )
         (Context.merge quotient1.context quotient2.context)
-        (Type.mergeSubstitutions quotient1.substitutions quotient2.substitutions)
+        (Type.Substitutions.merge quotient1.substitutions quotient2.substitutions)
         |> Maybe.map Quotient

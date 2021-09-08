@@ -5,6 +5,7 @@ import Data.Dict.Extra as Dict
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
 import Type exposing (Type)
+import Type.Substitutions exposing (Substitutions)
 import Value
 
 
@@ -35,7 +36,7 @@ mapTypes mapType (Context context) =
         |> Context
 
 
-merge : Context -> Context -> Maybe { context : Context, substitutions : Type.Substitutions }
+merge : Context -> Context -> Maybe { context : Context, substitutions : Substitutions }
 merge (Context context1) (Context context2) =
     Dict.binaryFallibleFold
         { initial =
@@ -51,7 +52,7 @@ merge (Context context1) (Context context2) =
                 Type.unify type1 type2
                     |> Maybe.andThen
                         (\type1Withtype2Substitutions ->
-                            Type.mergeSubstitutions type1Withtype2Substitutions contextQuotient.substitutions
+                            Type.Substitutions.merge type1Withtype2Substitutions contextQuotient.substitutions
                                 |> Maybe.map
                                     (\mergedSubstitutions ->
                                         { context = contextQuotient.context |> Dict.insert symbol type1

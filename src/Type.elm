@@ -1,8 +1,4 @@
-module Type exposing
-    ( Type(..), variable, and, or, unify, represent, parse, toString
-    , a1ANDa2_ORb2, a3ANDa4_ORb, aORb, mergeSubstitutions, u1, u2, t
-    , Substitutions, Symbol, normalize, toSymbolList
-    )
+module Type exposing (..)
 
 {-| tralala.
 
@@ -26,199 +22,55 @@ import Data.Symbol as Symbol
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Parser exposing ((|.), (|=), Parser)
+import Type.Internal exposing (..)
+import Type.Substitutions
 
 
 
 -- Types
 
 
-type Type
-    = Variable Symbol
-    | Or Type Type
-    | And Type Type
-    | Arrow Type Type
+type alias Type =
+    Type.Internal.Type
 
 
 type alias Symbol =
-    Symbol.Symbol TypeSymbolTag
-
-
-type TypeSymbolTag
-    = TypeSymbolTag
-
-
-type alias Substitutions =
-    Dict Symbol Type
-
-
-toSymbolList : Type -> List Symbol
-toSymbolList type_ =
-    case type_ of
-        Variable symbol ->
-            [ symbol ]
-
-        Or leftType rightType ->
-            toSymbolList leftType ++ toSymbolList rightType
-
-        And leftType rightType ->
-            toSymbolList leftType ++ toSymbolList rightType
-
-        Arrow leftType rightType ->
-            toSymbolList leftType ++ toSymbolList rightType
+    Type.Internal.Symbol
 
 
 
 -- Helpers
 
 
-map : (Symbol -> Type) -> Type -> Type
-map expandLeaf type_ =
-    case type_ of
-        Variable symbol ->
-            expandLeaf symbol
-
-        Or typeLeft typeRight ->
-            Or (map expandLeaf typeLeft) (map expandLeaf typeRight)
-
-        And typeLeft typeRight ->
-            And (map expandLeaf typeLeft) (map expandLeaf typeRight)
-
-        Arrow typeLeft typeRight ->
-            Arrow (map expandLeaf typeLeft) (map expandLeaf typeRight)
-
-
-realizeSubstitutions : Substitutions -> (Symbol -> Type)
-realizeSubstitutions substitutions =
-    \symbol ->
-        Dict.get symbol substitutions
-            |> Maybe.withDefault (Variable symbol)
-
-
-shallowSubstitute : Substitutions -> (Type -> Type)
-shallowSubstitute =
-    realizeSubstitutions >> map
-
-
-represent : Substitutions -> Type -> Type
-represent substitutions originalType =
-    shallowSubstitute substitutions originalType
-        |> (\newType ->
-                if newType == originalType then
-                    newType
-
-                else
-                    shallowSubstitute substitutions newType
-           )
-
-
-normalize : Type -> Type
-normalize type_ =
-    let
-        uniqueSumbols : List Symbol
-        uniqueSumbols =
-            type_
-                |> toSymbolList
-                |> List.map Symbol.toString
-                -- TODO implement List.unique with for any type
-                |> List.unique
-                |> List.map Symbol.fromString
-
-        simplifyingSubstitutions : Substitutions
-        simplifyingSubstitutions =
-            List.zip uniqueSumbols
-                (List.range 1 (List.length uniqueSumbols)
-                    |> List.map (String.fromInt >> variable)
-                )
-                |> Dict.fromList
-    in
-    represent simplifyingSubstitutions type_
-
-
-variable : String -> Type
-variable =
-    Symbol.fromString >> Variable
+variableFromString : String -> Type
+variableFromString =
+    Type.Internal.variableFromString
 
 
 or =
-    Or
+    Type.Internal.Or
 
 
 and =
-    And
+    Type.Internal.And
 
 
 arrow =
-    Arrow
+    Type.Internal.Arrow
 
 
-unify : Type -> Type -> Maybe Substitutions
-unify type1 type2 =
-    -- TODO try to write based on type constructor equality ~> if they are the same you match the correponding branches
-    case ( type1, type2 ) of
-        ( Variable typeSymbol1, Variable typeSymbol2 ) ->
-            Just <|
-                case Symbol.compare typeSymbol1 typeSymbol2 of
-                    Comparison.Equal ->
-                        Dict.empty
-
-                    Comparison.Lower ->
-                        Dict.singleton typeSymbol1 (Variable typeSymbol2)
-
-                    Comparison.Greater ->
-                        Dict.singleton typeSymbol2 (Variable typeSymbol1)
-
-        ( Variable typeSymbol, type_ ) ->
-            Just <|
-                Dict.singleton typeSymbol type_
-
-        ( type_, Variable typeSymbol ) ->
-            Just <|
-                Dict.singleton typeSymbol type_
-
-        ( Or type1Left type1Right, Or type2Left type2Right ) ->
-            Maybe.map2 mergeSubstitutions (unify type1Left type2Left) (unify type1Right type2Right)
-                |> Maybe.join
-
-        ( Or _ _, _ ) ->
-            Nothing
-
-        ( _, Or _ _ ) ->
-            Nothing
-
-        ( And type1Left type1Right, And type2Left type2Right ) ->
-            Maybe.map2 mergeSubstitutions (unify type1Left type2Left) (unify type1Right type2Right)
-                |> Maybe.join
-
-        ( And _ _, _ ) ->
-            Nothing
-
-        ( _, And _ _ ) ->
-            Nothing
-
-        ( Arrow type1Left type1Right, Arrow type2Left type2Right ) ->
-            Maybe.map2 mergeSubstitutions (unify type1Left type2Left) (unify type1Right type2Right)
-                |> Maybe.join
+toSymbolList : Type -> List Symbol
+toSymbolList =
+    Type.Internal.toSymbolList
 
 
-mergeSubstitutions : Substitutions -> Substitutions -> Maybe Substitutions
-mergeSubstitutions =
-    Dict.binaryFallibleFold
-        { initial = Dict.empty
-        , onOneKeyMatch =
-            \symbol type_ substitutions ->
-                Just <| Dict.insert symbol type_ substitutions
-        , onBothKeyMatch =
-            \symbol type1 type2 substitutions ->
-                unify type1 type2
-                    |> Maybe.andThen
-                        (\type1Withtype2Substitutions ->
-                            mergeSubstitutions
-                                substitutions
-                                (type1Withtype2Substitutions
-                                    |> Dict.insert symbol type1
-                                )
-                        )
-        }
+expandLeaves : (Symbol -> Type) -> Type -> Type
+expandLeaves =
+    Type.Internal.expandLeaves
+
+
+unify =
+    Type.Internal.unify
 
 
 
@@ -284,7 +136,7 @@ parser =
                         |> Set.fromList
                         |> Set.toElmSet
                 }
-                |> Parser.map variable
+                |> Parser.map Type.Internal.variableFromString
 
         operator : Parser (Type -> Type -> Type)
         operator =
@@ -313,49 +165,3 @@ parser =
             |. Parser.spaces
             |. Parser.symbol ")"
         ]
-
-
-
--- Testing
-
-
-aORb : Type
-aORb =
-    or (variable "a") (variable "b")
-
-
-a1ANDa2_ORb2 : Type
-a1ANDa2_ORb2 =
-    or
-        (and
-            (variable "a1")
-            (variable "a2")
-        )
-        (variable "b2")
-
-
-a3ANDa4_ORb : Type
-a3ANDa4_ORb =
-    or
-        (and
-            (variable "a3")
-            (variable "a4")
-        )
-        (variable "b2")
-
-
-u1 : Maybe Substitutions
-u1 =
-    unify aORb a1ANDa2_ORb2
-
-
-u2 : Maybe Substitutions
-u2 =
-    unify aORb a3ANDa4_ORb
-
-
-t : Maybe Type
-t =
-    Maybe.andThen2 mergeSubstitutions u1 u2
-        |> Maybe.map represent
-        |> Maybe.andMap (Just aORb)

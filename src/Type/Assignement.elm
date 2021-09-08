@@ -8,6 +8,7 @@ import Data.Symbol as Symbol
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Type exposing (Type)
+import Type.Substitutions exposing (Substitutions)
 import Value exposing (Value)
 
 
@@ -29,7 +30,7 @@ inferHelp variablePrefix value =
             let
                 newType : Type
                 newType =
-                    Type.variable <| variablePrefix ++ Symbol.toString symbol
+                    Type.variableFromString <| variablePrefix ++ Symbol.toString symbol
             in
             Just
                 { contextQuotient =
@@ -43,7 +44,7 @@ inferHelp variablePrefix value =
             Maybe.map
                 (\leftSumInferred ->
                     { contextQuotient = leftSumInferred.contextQuotient
-                    , assignedType = Type.Or leftSumInferred.assignedType (Type.variable <| variablePrefix ++ "a")
+                    , assignedType = Type.or leftSumInferred.assignedType (Type.variableFromString <| variablePrefix ++ "a")
                     }
                 )
                 (inferHelp (variablePrefix ++ "+L ") leftValue)
@@ -52,7 +53,7 @@ inferHelp variablePrefix value =
             Maybe.map
                 (\rightSumInferred ->
                     { contextQuotient = rightSumInferred.contextQuotient
-                    , assignedType = Type.Or (Type.variable <| variablePrefix ++ "a") rightSumInferred.assignedType
+                    , assignedType = Type.or (Type.variableFromString <| variablePrefix ++ "a") rightSumInferred.assignedType
                     }
                 )
                 (inferHelp (variablePrefix ++ "+R ") rightValue)
@@ -65,7 +66,7 @@ inferHelp variablePrefix value =
                             (\mergedContextQuotients ->
                                 { contextQuotient = mergedContextQuotients
                                 , assignedType =
-                                    Type.And leftProdInferred.assignedType rightProdInferred.assignedType
+                                    Type.and leftProdInferred.assignedType rightProdInferred.assignedType
                                 }
                             )
                 )
@@ -77,15 +78,15 @@ inferHelp variablePrefix value =
                 (\({ contextQuotient } as bodyInferred) ->
                     let
                         leftAndType =
-                            Type.variable <| variablePrefix ++ "a"
+                            Type.variableFromString <| variablePrefix ++ "a"
                     in
                     Type.unify
                         bodyInferred.assignedType
-                        (Type.And
+                        (Type.and
                             leftAndType
-                            (Type.variable <| variablePrefix ++ "b")
+                            (Type.variableFromString <| variablePrefix ++ "b")
                         )
-                        |> Maybe.andThen (Type.mergeSubstitutions bodyInferred.contextQuotient.substitutions)
+                        |> Maybe.andThen (Type.Substitutions.merge bodyInferred.contextQuotient.substitutions)
                         |> Maybe.map
                             (\newSubstitutions ->
                                 { contextQuotient =
@@ -101,15 +102,15 @@ inferHelp variablePrefix value =
                 (\({ contextQuotient } as bodyInferred) ->
                     let
                         rightAndType =
-                            Type.variable <| variablePrefix ++ "b"
+                            Type.variableFromString <| variablePrefix ++ "b"
                     in
                     Type.unify
                         bodyInferred.assignedType
-                        (Type.And
-                            (Type.variable <| variablePrefix ++ "a")
+                        (Type.and
+                            (Type.variableFromString <| variablePrefix ++ "a")
                             rightAndType
                         )
-                        |> Maybe.andThen (Type.mergeSubstitutions bodyInferred.contextQuotient.substitutions)
+                        |> Maybe.andThen (Type.Substitutions.merge bodyInferred.contextQuotient.substitutions)
                         |> Maybe.map
                             (\newSubstitutions ->
                                 { contextQuotient =
@@ -126,7 +127,7 @@ inferHelp variablePrefix value =
                     Maybe.unwrap
                         { contextQuotient = bodyInferred.contextQuotient
                         , assignedType =
-                            Type.Arrow (Type.variable <| variablePrefix ++ Symbol.toString symbol) bodyInferred.assignedType
+                            Type.arrow (Type.variableFromString <| variablePrefix ++ Symbol.toString symbol) bodyInferred.assignedType
                         }
                         (\symbolType ->
                             { contextQuotient =
@@ -138,7 +139,7 @@ inferHelp variablePrefix value =
                                     | context =
                                         Dict.remove symbol oldContextQuotient.context
                                 }
-                            , assignedType = Type.Arrow symbolType bodyInferred.assignedType
+                            , assignedType = Type.arrow symbolType bodyInferred.assignedType
                             }
                         )
                         (Dict.get symbol <| bodyInferred.contextQuotient.context)
@@ -154,12 +155,12 @@ inferHelp variablePrefix value =
                                 let
                                     domainType : Type
                                     domainType =
-                                        Type.variable <| variablePrefix ++ "domain"
+                                        Type.variableFromString <| variablePrefix ++ "domain"
                                 in
                                 Type.unify
                                     functionInferred.assignedType
-                                    (Type.Arrow argumentInferred.assignedType domainType)
-                                    |> Maybe.andThen (Type.mergeSubstitutions newContextQuotients.substitutions)
+                                    (Type.arrow argumentInferred.assignedType domainType)
+                                    |> Maybe.andThen (Type.Substitutions.merge newContextQuotients.substitutions)
                                     |> Maybe.map
                                         (\newSubstitutions ->
                                             { contextQuotient =
@@ -178,7 +179,7 @@ normalize { assignedType, contextQuotient } =
     let
         representedAssignedType =
             assignedType
-                |> Type.represent contextQuotient.substitutions
+                |> Type.Substitutions.represent contextQuotient.substitutions
 
         uniqueSumbols : List Type.Symbol
         uniqueSumbols =
@@ -189,23 +190,23 @@ normalize { assignedType, contextQuotient } =
                 |> List.unique
                 |> List.map Symbol.fromString
 
-        simplifyingSubstitutions : Type.Substitutions
+        simplifyingSubstitutions : Substitutions
         simplifyingSubstitutions =
             List.zip uniqueSumbols
                 (List.range 97 (97 + List.length uniqueSumbols)
-                    |> List.map (Char.fromCode >> String.fromChar >> Type.variable)
+                    |> List.map (Char.fromCode >> String.fromChar >> Type.variableFromString)
                 )
                 |> Dict.fromList
     in
     { context =
         contextQuotient.context
             |> Context.mapTypes
-                (Type.represent contextQuotient.substitutions
-                    >> Type.represent simplifyingSubstitutions
+                (Type.Substitutions.represent contextQuotient.substitutions
+                    >> Type.Substitutions.represent simplifyingSubstitutions
                 )
     , assignedType =
         representedAssignedType
-            |> Type.represent simplifyingSubstitutions
+            |> Type.Substitutions.represent simplifyingSubstitutions
     }
 
 
