@@ -28,6 +28,12 @@ singleton symbol type_ =
         |> Quotient
 
 
+add : Value.Symbol -> Type -> Quotient -> Maybe Quotient
+add valueSymbol type_ =
+    merge
+        (singleton valueSymbol type_)
+
+
 merge : Quotient -> Quotient -> Maybe Quotient
 merge (Quotient quotient1) (Quotient quotient2) =
     Maybe.andThen2

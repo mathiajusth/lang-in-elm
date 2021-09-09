@@ -1,4 +1,11 @@
-module Context exposing (Context, empty, mapTypes, merge, singleton)
+module Context exposing
+    ( Context
+    , add
+    , empty
+    , mapTypes
+    , merge
+    , singleton
+    )
 
 import AssocList as Dict exposing (Dict)
 import Data.Dict.Extra as Dict
@@ -21,6 +28,12 @@ empty : Context
 empty =
     Dict.empty
         |> Context
+
+
+add : Value.Symbol -> Type -> Context -> Maybe { context : Context, substitutions : Substitutions }
+add valueSymbol type_ =
+    merge
+        (singleton valueSymbol type_)
 
 
 singleton : Value.Symbol -> Type -> Context

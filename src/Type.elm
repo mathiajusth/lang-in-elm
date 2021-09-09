@@ -47,6 +47,10 @@ variableFromString =
     Type.Internal.variableFromString
 
 
+var =
+    Type.Internal.Variable
+
+
 or =
     Type.Internal.Or
 

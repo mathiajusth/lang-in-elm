@@ -1,89 +1,115 @@
 module Type.Inference exposing (..)
 
-import Context exposing (Context)
+import Context.Quotient as Context
+import Data.Stateful as Stateful exposing (Stateful)
+import Data.Symbol as Symbol
+import Maybe.Extra as Maybe
 import Type exposing (Type)
 import Type.Substitutions exposing (Substitutions)
 import Value exposing (Value)
 
 
-type alias Context =
-    { ctx : Context.Context
-    , subs : Substitutions
-    , varPrefix : List Int
-    }
+
+-- Conditional
 
 
-type alias Inference a =
-    Context -> ( Context, a )
+type alias Conditional a =
+    Stateful Assumptions a
 
 
-
--- Inf (Inf a)
---   -> Context -> (Context, Inference a)
---   -> Context -> (Context, Context -> (Context, a))
+type alias Assumptions =
+    Context.Quotient
 
 
-type Term
-    = Leaf TermSymbol
-    | Tuple Tuple
-
-
-type Tuple
-    = Introduction Term Term
-    | Elimination Elimination
-
-
-type Elimination
-    = ProjL
-    | ProjR
-
-
-type alias TermSymbol =
-    String
+variableIntroduction_ : Value.Symbol -> Type.Symbol -> Maybe (Conditional Type)
+variableIntroduction_ valueSymbol typeSymbol assumptions =
+    let
+        freshTypeVar =
+            Type.var typeSymbol
+    in
+    Maybe.unwrap
+        ( assumptions, Err "Assumption merge fail" )
+        (\newAssumptions ->
+            ( newAssumptions
+            , Ok freshTypeVar
+            )
+        )
+        (Context.add valueSymbol freshTypeVar assumptions)
 
 
 
--- Applicative
+-- Generator
 
 
-apply : Inference (a -> b) -> Inference a -> Inference b
-apply infAtoB infA =
-    -- which state update to do first?
-    -- how to define this based on monad?
-    \ctx ->
-        let
-            ( newCtx, aToB ) =
-                infAtoB ctx
-
-            ( newestCtx, a ) =
-                infA newCtx
-        in
-        ( newestCtx, aToB a )
+type alias Generator a =
+    Stateful Seed a
 
 
-
--- Monad
-
-
-applyInKleisli : (a -> Inference b) -> Inference a -> Inference b
-applyInKleisli kleisliFunction kleisliArgument =
-    \ctx ->
-        let
-            ( newCtx, a ) =
-                kleisliArgument ctx
-
-            infB =
-                kleisliFunction a
-        in
-        infB newCtx
+type alias Seed =
+    -- TODO just mock
+    Type.Symbol
 
 
-andThen : Inference a -> (a -> Inference b) -> Inference b
-andThen kleisliArgument kleisliFunction =
-    applyInKleisli kleisliFunction kleisliArgument
+generateTypeSymbol_ : Generator Type.Symbol
+generateTypeSymbol_ seed =
+    ( seed
+        |> Symbol.toString
+        |> (++) "_"
+        |> Symbol.fromString
+    , seed
+    )
 
 
 
+-- Contextual
+
+
+type alias Contextual a =
+    Stateful ( Assumptions, Seed ) a
+
+
+liftConditional : Conditional a -> Contextual a
+liftConditional =
+    Stateful.liftLeft
+
+
+liftGenerator : Generator a -> Contextual a
+liftGenerator =
+    Stateful.liftRight
+
+
+generateTypeSymbol : Contextual Type.Symbol
+generateTypeSymbol =
+    liftGenerator generateTypeSymbol_
+
+
+variableIntroduction : Value.Symbol -> Type.Symbol -> Contextual (Result String Type)
+variableIntroduction valueSymbol typeSymbol =
+    liftConditional (variableIntroduction_ valueSymbol typeSymbol)
+
+
+
+-- infer : Value -> Contextual (Result String Type)
+-- infer term =
+--     case term of
+--         Value.Variable valueSymbol ->
+--             Stateful.andThen
+--                 (\typeSymbol ->
+--                     variableIntroduction valueSymbol typeSymbol
+--                 )
+--                 generateTypeSymbol
+--         -- Product
+--         Tuple value1 value2 ->
+--           Stateful.pure
+--               (\resultType1 resultType2 ->
+--                 Result.map2
+--                   (\type1 type2 ->
+--                   )
+--                   resultType1
+--                   resultType2
+--               )
+--               |> State.andMap (infer v1)
+--               |> State.andMap (infer v2)
 -- andMap : Inference a -> Inference (a -> b) -> Inference b
 -- andMap infA infAtoB =
 --   \ctx ->
