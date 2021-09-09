@@ -2,6 +2,7 @@ module Type.Inference exposing (..)
 
 import Context.Quotient as Context
 import Data.Stateful as Stateful exposing (Stateful)
+import Data.Stateful.Fallible as StatefulFallible exposing (StatefulFallible)
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
 import Type exposing (Type)
@@ -100,14 +101,9 @@ infer term =
 
         -- Product
         Value.Tuple value1 value2 ->
-            Stateful.andThen2
-                (\resultType1 resultType2 ->
-                    case ( resultType1, resultType2 ) of
-                        ( Ok type1, Ok type2 ) ->
-                            Stateful.pure (Ok <| Type.and type1 type2)
-
-                        _ ->
-                            Stateful.pure (Err "Error Tuple")
+            StatefulFallible.andThen2
+                (\type1 type2 ->
+                    StatefulFallible.pure (Type.and type1 type2)
                 )
                 (infer value1)
                 (infer value2)
