@@ -21,7 +21,7 @@ type alias Assumptions =
     Context.Quotient
 
 
-variableIntroduction_ : Value.Symbol -> Type.Symbol -> Maybe (Conditional Type)
+variableIntroduction_ : Value.Symbol -> Type.Symbol -> Conditional (Result String Type)
 variableIntroduction_ valueSymbol typeSymbol assumptions =
     let
         freshTypeVar =
@@ -88,28 +88,32 @@ variableIntroduction valueSymbol typeSymbol =
     liftConditional (variableIntroduction_ valueSymbol typeSymbol)
 
 
+infer : Value -> Contextual (Result String Type)
+infer term =
+    case term of
+        Value.Variable valueSymbol ->
+            Stateful.andThen
+                (\typeSymbol ->
+                    variableIntroduction valueSymbol typeSymbol
+                )
+                generateTypeSymbol
 
--- infer : Value -> Contextual (Result String Type)
--- infer term =
---     case term of
---         Value.Variable valueSymbol ->
---             Stateful.andThen
---                 (\typeSymbol ->
---                     variableIntroduction valueSymbol typeSymbol
---                 )
---                 generateTypeSymbol
---         -- Product
---         Tuple value1 value2 ->
---           Stateful.pure
---               (\resultType1 resultType2 ->
---                 Result.map2
---                   (\type1 type2 ->
---                   )
---                   resultType1
---                   resultType2
---               )
---               |> State.andMap (infer v1)
---               |> State.andMap (infer v2)
+        -- Product
+        Value.Tuple value1 value2 ->
+            Stateful.andThen2
+                (\resultType1 resultType2 ->
+                    case ( resultType1, resultType2 ) of
+                        ( Ok type1, Ok type2 ) ->
+                            Stateful.pure (Ok <| Type.and type1 type2)
+
+                        _ ->
+                            Stateful.pure (Err "Error Tuple")
+                )
+                (infer value1)
+                (infer value2)
+
+
+
 -- andMap : Inference a -> Inference (a -> b) -> Inference b
 -- andMap infA infAtoB =
 --   \ctx ->

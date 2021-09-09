@@ -64,6 +64,18 @@ andThen =
     applyInKleisli
 
 
+andThen2 : (a -> b -> Stateful state c) -> Stateful state a -> Stateful state b -> Stateful state c
+andThen2 f statefulA statefulB state =
+    let
+        ( newState, a ) =
+            statefulA state
+
+        ( newerState, b ) =
+            statefulB newState
+    in
+    f a b newerState
+
+
 
 -- state tuple
 
