@@ -1,4 +1,4 @@
-module Data.Stateful.Fallible exposing (..)
+module Data.Stateful.Fallible2 exposing (..)
 
 import Data.Stateful as Stateful exposing (Stateful)
 import Result.Extra as Result
@@ -28,47 +28,28 @@ map aToB statefulA =
         >> Result.map (Tuple.mapSecond aToB)
 
 
-
--- Result.map
--- (\( newState, a ) ->
---     ( newState, aToB a )
--- )
--- (statefulA state)
--- Applicative
-
-
 apply : StatefulFallible e state (a -> b) -> StatefulFallible e state a -> StatefulFallible e state b
 apply statefulAtoB statefulA =
     -- which state update to do first?
     -- how to define this based on monad?
-    \state ->
-        let
-            ( newState, resultAToB ) =
-                statefulAtoB state
-
-            ( newestState, resultA ) =
+    statefulAtoB
+        >> Result.andThen
+            (\( newState, aTob ) ->
                 statefulA newState
-        in
-        ( newestState
-        , Result.andMap resultA resultAToB
-        )
-
-
-
--- Monad
+                    |> Result.map
+                        (\( newerState, a ) ->
+                            ( newerState, aTob a )
+                        )
+            )
 
 
 applyInKleisli : (a -> StatefulFallible e state b) -> StatefulFallible e state a -> StatefulFallible e state b
-applyInKleisli kleisliFunction statefulA state =
-    let
-        ( newState, resultA ) =
-            statefulA state
-    in
-    Result.unpack (\err -> ( newState, Err err ))
-        (\a ->
-            kleisliFunction a newState
-        )
-        resultA
+applyInKleisli kleisliFunction statefulA =
+    statefulA
+        >> Result.andThen
+            (\( newState, a ) ->
+                kleisliFunction a newState
+            )
 
 
 andThen : (a -> StatefulFallible e state b) -> StatefulFallible e state a -> StatefulFallible e state b
@@ -77,19 +58,13 @@ andThen =
 
 
 andThen2 : (a -> b -> StatefulFallible e state c) -> StatefulFallible e state a -> StatefulFallible e state b -> StatefulFallible e state c
-andThen2 f statefulA statefulB state =
-    let
-        ( newState, resultA ) =
-            statefulA state
-
-        ( newerState, resultB ) =
-            statefulB newState
-    in
-    Result.map2
-        (\a b ->
-            f a b newerState
-        )
-        resultA
-        resultB
-        |> Result.unpack (\err -> ( newState, Err err ))
-            identity
+andThen2 f statefulA statefulB =
+    statefulA
+        >> Result.andThen
+            (\( newState, a ) ->
+                statefulB newState
+                    |> Result.andThen
+                        (\( newerState, b ) ->
+                            f a b newerState
+                        )
+            )

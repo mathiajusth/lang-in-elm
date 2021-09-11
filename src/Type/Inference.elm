@@ -3,8 +3,10 @@ module Type.Inference exposing (..)
 import Context.Quotient as Context
 import Data.Stateful as Stateful exposing (Stateful)
 import Data.Stateful.Fallible as StatefulFallible exposing (StatefulFallible)
+import Data.Stateful.Fallible2 as StatefulFallible2
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
+import Result.Extra as Result
 import Type exposing (Type)
 import Type.Substitutions exposing (Substitutions)
 import Value exposing (Value)
@@ -91,6 +93,54 @@ variableIntroduction valueSymbol typeSymbol =
 
 infer : Value -> Contextual (Result String Type)
 infer term =
+    case term of
+        Value.Variable valueSymbol ->
+            Stateful.andThen
+                (\typeSymbol ->
+                    variableIntroduction valueSymbol typeSymbol
+                )
+                generateTypeSymbol
+
+        -- Product
+        Value.Tuple value1 value2 ->
+            StatefulFallible.andThen2
+                (\type1 type2 ->
+                    StatefulFallible.pure (Type.and type1 type2)
+                )
+                (infer value1)
+                (infer value2)
+
+
+
+--
+
+
+type alias Inference a =
+    StatefulFallible2.StatefulFallible { assumptions : Assumptions, seed : Seed } Error a
+
+
+type Error
+    = Error
+
+
+variableIntroduction2 : Value.Symbol -> Type.Symbol -> Inference Type
+variableIntroduction2 valueSymbol typeSymbol context =
+    let
+        freshTypeVar =
+            Type.var typeSymbol
+    in
+    Maybe.unwrap (Err Error)
+        (\newAssumptions ->
+            Ok
+                ( { context | assumptions = newAssumptions }
+                , freshTypeVar
+                )
+        )
+        (Context.add valueSymbol freshTypeVar context.assumptions)
+
+
+infer2 : Value -> Inference Type
+infer2 term =
     case term of
         Value.Variable valueSymbol ->
             Stateful.andThen
