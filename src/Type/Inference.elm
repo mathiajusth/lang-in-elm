@@ -91,27 +91,24 @@ variableIntroduction valueSymbol typeSymbol =
     liftConditional (variableIntroduction_ valueSymbol typeSymbol)
 
 
-infer : Value -> Contextual (Result String Type)
-infer term =
-    case term of
-        Value.Variable valueSymbol ->
-            Stateful.andThen
-                (\typeSymbol ->
-                    variableIntroduction valueSymbol typeSymbol
-                )
-                generateTypeSymbol
 
-        -- Product
-        Value.Tuple value1 value2 ->
-            StatefulFallible.andThen2
-                (\type1 type2 ->
-                    StatefulFallible.pure (Type.and type1 type2)
-                )
-                (infer value1)
-                (infer value2)
-
-
-
+-- infer : Value -> Contextual (Result String Type)
+-- infer term =
+--     case term of
+--         Value.Variable valueSymbol ->
+--             Stateful.andThen
+--                 (\typeSymbol ->
+--                     variableIntroduction valueSymbol typeSymbol
+--                 )
+--                 generateTypeSymbol
+--         -- Product
+--         Value.Tuple value1 value2 ->
+--             StatefulFallible.andThen2
+--                 (\type1 type2 ->
+--                     StatefulFallible.pure (Type.and type1 type2)
+--                 )
+--                 (infer value1)
+--                 (infer value2)
 --
 
 
@@ -121,6 +118,22 @@ type alias Inference a =
 
 type Error
     = Error
+
+
+generateTypeSymbol2 : Inference Type.Symbol
+generateTypeSymbol2 =
+    \({ seed } as state) ->
+        let
+            ( newSeed, generatedTypeSymbol ) =
+                generateTypeSymbol_ seed
+        in
+        Ok ( { state | seed = newSeed }, generatedTypeSymbol )
+
+
+generateTypeVar : Inference Type
+generateTypeVar =
+    generateTypeSymbol2
+        |> StatefulFallible2.map Type.var
 
 
 variableIntroduction2 : Value.Symbol -> Type.Symbol -> Inference Type
@@ -143,20 +156,32 @@ infer2 : Value -> Inference Type
 infer2 term =
     case term of
         Value.Variable valueSymbol ->
-            Stateful.andThen
+            -- TODO refactor
+            StatefulFallible2.andThen
                 (\typeSymbol ->
-                    variableIntroduction valueSymbol typeSymbol
+                    variableIntroduction2 valueSymbol typeSymbol
                 )
-                generateTypeSymbol
+                generateTypeSymbol2
 
         -- Product
         Value.Tuple value1 value2 ->
-            StatefulFallible.andThen2
-                (\type1 type2 ->
-                    StatefulFallible.pure (Type.and type1 type2)
-                )
-                (infer value1)
-                (infer value2)
+            Type.and
+                |> StatefulFallible2.args2
+                    (infer2 value1)
+                    (infer2 value2)
+
+        -- Sum
+        Value.Left value ->
+            Type.or
+                |> StatefulFallible2.args2
+                    (infer2 value)
+                    generateTypeVar
+
+        Value.Right value ->
+            Type.or
+                |> StatefulFallible2.args2
+                    generateTypeVar
+                    (infer2 value)
 
 
 

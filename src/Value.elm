@@ -2,8 +2,9 @@ module Value exposing
     ( Symbol
     , Value(..)
     , left
-    , right
-    , testing
+    ,  right
+       -- , testing
+
     , toString
     , tuple
     , variable
@@ -23,11 +24,14 @@ type Value
     | Right Value
       -- Product
     | Tuple Value Value
-    | ProjLeft Value
-    | ProjRight Value
-      -- Function
-    | Lambda Symbol Value
-    | Application Value Value
+
+
+
+-- | ProjLeft Value
+-- | ProjRight Value
+-- Function
+-- | Lambda Symbol Value
+-- | Application Value Value
 
 
 type alias Symbol =
@@ -57,17 +61,16 @@ toString value =
         Tuple leftValue rightValue ->
             "( " ++ toString leftValue ++ " , " ++ toString rightValue ++ " )"
 
-        ProjLeft innerValue ->
-            "fst " ++ toString innerValue
 
-        ProjRight innerValue ->
-            "snd " ++ toString innerValue
 
-        Lambda symbol body ->
-            "\\" ++ Symbol.toString symbol ++ ". " ++ toString body
-
-        Application f x ->
-            "[" ++ toString f ++ " " ++ toString x ++ "]"
+-- ProjLeft innerValue ->
+--     "fst " ++ toString innerValue
+-- ProjRight innerValue ->
+--     "snd " ++ toString innerValue
+-- Lambda symbol body ->
+--     "\\" ++ Symbol.toString symbol ++ ". " ++ toString body
+-- Application f x ->
+--     "[" ++ toString f ++ " " ++ toString x ++ "]"
 
 
 variable : String -> Value
@@ -87,47 +90,41 @@ tuple =
     Tuple
 
 
-lambda =
-    Lambda
 
-
-app =
-    Application
-
-
-
+-- lambda =
+--     Lambda
+-- app =
+--     Application
 -- Testing
-
-
-testing =
-    { v1 =
-        tuple (left (variable "a")) (tuple (variable "b") (right (variable "c")))
-    , v2 =
-        tuple (left (variable "a")) (tuple (variable "b") (right (variable "a")))
-    , v3 =
-        lambda (Symbol.fromString "x") (variable "0")
-    , v4 =
-        lambda (Symbol.fromString "x") (variable "x")
-    , v5 =
-        app
-            (lambda
-                (Symbol.fromString "x")
-                (tuple (variable "x") (variable "x"))
-            )
-            (variable "y")
-    , v6 =
-        lambda (Symbol.fromString "f")
-            (lambda
-                (Symbol.fromString "x")
-                (app (variable "f") (variable "x"))
-            )
-    , v61 =
-        lambda
-            (Symbol.fromString "x")
-            (app (variable "f") (variable "x"))
-    , v62 =
-        app (variable "f") (variable "x")
-    , v7 = ProjLeft (variable "x")
-    , v8 = ProjLeft (tuple (variable "x") (variable "y"))
-    , v9 = ProjLeft (left (variable "x"))
-    }
+-- testing =
+--     { v1 =
+--         tuple (left (variable "a")) (tuple (variable "b") (right (variable "c")))
+--     , v2 =
+--         tuple (left (variable "a")) (tuple (variable "b") (right (variable "a")))
+--     , v3 =
+--         lambda (Symbol.fromString "x") (variable "0")
+--     , v4 =
+--         lambda (Symbol.fromString "x") (variable "x")
+--     , v5 =
+--         app
+--             (lambda
+--                 (Symbol.fromString "x")
+--                 (tuple (variable "x") (variable "x"))
+--             )
+--             (variable "y")
+--     , v6 =
+--         lambda (Symbol.fromString "f")
+--             (lambda
+--                 (Symbol.fromString "x")
+--                 (app (variable "f") (variable "x"))
+--             )
+--     , v61 =
+--         lambda
+--             (Symbol.fromString "x")
+--             (app (variable "f") (variable "x"))
+--     , v62 =
+--         app (variable "f") (variable "x")
+--     , v7 = ProjLeft (variable "x")
+--     , v8 = ProjLeft (tuple (variable "x") (variable "y"))
+--     , v9 = ProjLeft (left (variable "x"))
+--     }

@@ -1,5 +1,6 @@
 module Data.Stateful.Fallible2 exposing (..)
 
+import Basics.Extra as Basics
 import Data.Stateful as Stateful exposing (Stateful)
 import Result.Extra as Result
 
@@ -28,6 +29,13 @@ map aToB statefulA =
         >> Result.map (Tuple.mapSecond aToB)
 
 
+map2 : (a -> b -> c) -> StatefulFallible state e a -> StatefulFallible state e b -> StatefulFallible state e c
+map2 f statefulA statefulB =
+    pure f
+        |> andMap statefulA
+        |> andMap statefulB
+
+
 apply : StatefulFallible e state (a -> b) -> StatefulFallible e state a -> StatefulFallible e state b
 apply statefulAtoB statefulA =
     -- which state update to do first?
@@ -41,6 +49,16 @@ apply statefulAtoB statefulA =
                             ( newerState, aTob a )
                         )
             )
+
+
+andMap : StatefulFallible e state a -> StatefulFallible e state (a -> b) -> StatefulFallible e state b
+andMap =
+    Basics.flip apply
+
+
+args2 : StatefulFallible e state a -> StatefulFallible e state b -> (a -> b -> c) -> StatefulFallible e state c
+args2 statefulA statefulB f =
+    map2 f statefulA statefulB
 
 
 applyInKleisli : (a -> StatefulFallible e state b) -> StatefulFallible e state a -> StatefulFallible e state b
