@@ -24,10 +24,10 @@ type Value
     | Right Value
       -- Product
     | Tuple Value Value
+    | ProjLeft Value
 
 
 
--- | ProjLeft Value
 -- | ProjRight Value
 -- Function
 -- | Lambda Symbol Value
@@ -61,10 +61,11 @@ toString value =
         Tuple leftValue rightValue ->
             "( " ++ toString leftValue ++ " , " ++ toString rightValue ++ " )"
 
+        ProjLeft innerValue ->
+            "fst " ++ toString innerValue
 
 
--- ProjLeft innerValue ->
---     "fst " ++ toString innerValue
+
 -- ProjRight innerValue ->
 --     "snd " ++ toString innerValue
 -- Lambda symbol body ->

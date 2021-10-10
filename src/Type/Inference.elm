@@ -1,43 +1,40 @@
 module Type.Inference exposing (..)
 
-import Context.Quotient as Context
+import Context.Quotient as Assumptions
+import Data.Contextual as Contextual exposing (Contextual)
 import Data.Stateful as Stateful exposing (Stateful)
-import Data.Stateful.Fallible as StatefulFallible exposing (StatefulFallible)
-import Data.Stateful.Fallible2 as StatefulFallible2
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
-import Result.Extra as Result
 import Type exposing (Type)
-import Type.Substitutions exposing (Substitutions)
 import Value exposing (Value)
 
 
+type alias Inference a =
+    Contextual Context Error a
 
--- Conditional
 
-
-type alias Conditional a =
-    Stateful Assumptions a
+type alias Context =
+    { assumptions : Assumptions
+    , seed : Seed
+    }
 
 
 type alias Assumptions =
-    Context.Quotient
+    Assumptions.Quotient
 
 
-variableIntroduction_ : Value.Symbol -> Type.Symbol -> Conditional (Result String Type)
-variableIntroduction_ valueSymbol typeSymbol assumptions =
-    let
-        freshTypeVar =
-            Type.var typeSymbol
-    in
-    Maybe.unwrap
-        ( assumptions, Err "Assumption merge fail" )
-        (\newAssumptions ->
-            ( newAssumptions
-            , Ok freshTypeVar
-            )
-        )
-        (Context.add valueSymbol freshTypeVar assumptions)
+type Error
+    = Error
+
+
+liftSeed : Contextual Seed e a -> Contextual { r | seed : Seed } e a
+liftSeed =
+    Contextual.embedState .seed (\newSeed ctx -> { ctx | seed = newSeed })
+
+
+liftAssumption : Contextual Assumptions e a -> Contextual { r | assumptions : Assumptions } e a
+liftAssumption =
+    Contextual.embedState .assumptions (\newAssumptions ctx -> { ctx | assumptions = newAssumptions })
 
 
 
@@ -49,107 +46,54 @@ type alias Generator a =
 
 
 type alias Seed =
-    -- TODO just mock
-    Type.Symbol
+    Int
 
 
-generateTypeSymbol_ : Generator Type.Symbol
-generateTypeSymbol_ seed =
-    ( seed
-        |> Symbol.toString
-        |> (++) "_"
-        |> Symbol.fromString
+generateTypeSymbol : Generator Type.Symbol
+generateTypeSymbol seed =
+    ( seed + 1
     , seed
+        |> String.fromInt
+        |> Symbol.fromString
     )
 
 
-
--- Contextual
-
-
-type alias Contextual a =
-    Stateful ( Assumptions, Seed ) a
-
-
-liftConditional : Conditional a -> Contextual a
-liftConditional =
-    Stateful.liftLeft
-
-
-liftGenerator : Generator a -> Contextual a
+liftGenerator : Generator a -> Contextual { r | seed : Seed } e a
 liftGenerator =
-    Stateful.liftRight
-
-
-generateTypeSymbol : Contextual Type.Symbol
-generateTypeSymbol =
-    liftGenerator generateTypeSymbol_
-
-
-variableIntroduction : Value.Symbol -> Type.Symbol -> Contextual (Result String Type)
-variableIntroduction valueSymbol typeSymbol =
-    liftConditional (variableIntroduction_ valueSymbol typeSymbol)
+    Contextual.liftStateful .seed (\newSeed ctx -> { ctx | seed = newSeed })
 
 
 
--- infer : Value -> Contextual (Result String Type)
--- infer term =
---     case term of
---         Value.Variable valueSymbol ->
---             Stateful.andThen
---                 (\typeSymbol ->
---                     variableIntroduction valueSymbol typeSymbol
---                 )
---                 generateTypeSymbol
---         -- Product
---         Value.Tuple value1 value2 ->
---             StatefulFallible.andThen2
---                 (\type1 type2 ->
---                     StatefulFallible.pure (Type.and type1 type2)
---                 )
---                 (infer value1)
---                 (infer value2)
 --
 
 
-type alias Inference a =
-    StatefulFallible2.StatefulFallible { assumptions : Assumptions, seed : Seed } Error a
+freshSymbol : Contextual { r | seed : Seed } e Type.Symbol
+freshSymbol =
+    generateTypeSymbol
+        |> liftGenerator
 
 
-type Error
-    = Error
+freshTypeVar : Contextual { r | seed : Seed } e Type
+freshTypeVar =
+    freshSymbol
+        |> Contextual.map Type.var
 
 
-generateTypeSymbol2 : Inference Type.Symbol
-generateTypeSymbol2 =
-    \({ seed } as state) ->
-        let
-            ( newSeed, generatedTypeSymbol ) =
-                generateTypeSymbol_ seed
-        in
-        Ok ( { state | seed = newSeed }, generatedTypeSymbol )
-
-
-generateTypeVar : Inference Type
-generateTypeVar =
-    generateTypeSymbol2
-        |> StatefulFallible2.map Type.var
-
-
-variableIntroduction2 : Value.Symbol -> Type.Symbol -> Inference Type
-variableIntroduction2 valueSymbol typeSymbol context =
+variableIntroduction : Value.Symbol -> Type.Symbol -> Inference Type
+variableIntroduction valueSymbol typeSymbol context =
     let
-        freshTypeVar =
+        fresh : Type
+        fresh =
             Type.var typeSymbol
     in
     Maybe.unwrap (Err Error)
         (\newAssumptions ->
             Ok
                 ( { context | assumptions = newAssumptions }
-                , freshTypeVar
+                , fresh
                 )
         )
-        (Context.add valueSymbol freshTypeVar context.assumptions)
+        (Assumptions.add valueSymbol fresh context.assumptions)
 
 
 infer2 : Value -> Inference Type
@@ -157,53 +101,42 @@ infer2 term =
     case term of
         Value.Variable valueSymbol ->
             -- TODO refactor
-            StatefulFallible2.andThen
+            Contextual.andThen
                 (\typeSymbol ->
-                    variableIntroduction2 valueSymbol typeSymbol
+                    variableIntroduction valueSymbol typeSymbol
                 )
-                generateTypeSymbol2
+                freshSymbol
 
         -- Product
         Value.Tuple value1 value2 ->
             Type.and
-                |> StatefulFallible2.args2
+                |> Contextual.args2
                     (infer2 value1)
                     (infer2 value2)
 
         -- Sum
         Value.Left value ->
             Type.or
-                |> StatefulFallible2.args2
+                |> Contextual.args2
                     (infer2 value)
-                    generateTypeVar
+                    freshTypeVar
 
         Value.Right value ->
             Type.or
-                |> StatefulFallible2.args2
-                    generateTypeVar
+                |> Contextual.args2
+                    freshTypeVar
                     (infer2 value)
 
-
-
--- andMap : Inference a -> Inference (a -> b) -> Inference b
--- andMap infA infAtoB =
---   \ctx ->
--- freshVar : Inference TermSymbol
--- freshVar =
---   \ctx ->
---     (
---       )
--- infer : Term -> Inference Type
--- infer term =
---   case term of
---     Leaf termSymbol ->
---       \ctx ->
---         ({ctx | })
--- emptyState : State
--- emptyState =
---     { ctx = Context.empty
---     , subs = Type.Substitutions.empty
---     , varsCount = 0
---     }
--- pure : a ->  Inference a
--- pure =
+        Value.ProjLeft value ->
+            Contextual.andThen3
+                (\freshA freshB valueType ->
+                    freshA
+                        |> Contextual.unpure
+                            (Assumptions.addEq (Type.or freshA freshB) valueType
+                                >> Result.fromMaybe Error
+                            )
+                        |> liftAssumption
+                )
+                freshTypeVar
+                freshTypeVar
+                (infer2 value)

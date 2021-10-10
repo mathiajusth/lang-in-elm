@@ -34,6 +34,19 @@ add valueSymbol type_ =
         (singleton valueSymbol type_)
 
 
+addEq : Type -> Type -> Quotient -> Maybe Quotient
+addEq t1 t2 (Quotient quotient) =
+    Type.unify t1 t2
+        |> Maybe.andThen
+            (\newSubs ->
+                Type.Substitutions.merge newSubs quotient.substitutions
+                    |> Maybe.map
+                        (\mergedSubs ->
+                            Quotient { quotient | substitutions = mergedSubs }
+                        )
+            )
+
+
 merge : Quotient -> Quotient -> Maybe Quotient
 merge (Quotient quotient1) (Quotient quotient2) =
     Maybe.andThen2
