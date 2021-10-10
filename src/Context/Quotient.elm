@@ -20,6 +20,14 @@ represent (Quotient { context, substitutions }) =
         context
 
 
+empty : Quotient
+empty =
+    { context = Context.empty
+    , substitutions = Dict.empty
+    }
+        |> Quotient
+
+
 singleton : Value.Symbol -> Type -> Quotient
 singleton symbol type_ =
     { context = Context.singleton symbol type_

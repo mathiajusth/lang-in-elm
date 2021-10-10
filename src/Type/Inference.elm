@@ -5,6 +5,7 @@ import Data.Contextual as Contextual exposing (Contextual)
 import Data.Stateful as Stateful exposing (Stateful)
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
+import Result.Extra as Result
 import Type exposing (Type)
 import Value exposing (Value)
 
@@ -16,6 +17,13 @@ type alias Inference a =
 type alias Context =
     { assumptions : Assumptions
     , seed : Seed
+    }
+
+
+emptyContext : Context
+emptyContext =
+    { assumptions = Assumptions.empty
+    , seed = 0
     }
 
 
@@ -96,47 +104,71 @@ variableIntroduction valueSymbol typeSymbol context =
         (Assumptions.add valueSymbol fresh context.assumptions)
 
 
-infer2 : Value -> Inference Type
-infer2 term =
+infer : Value -> Inference Type
+infer term =
     case term of
         Value.Variable valueSymbol ->
-            -- TODO refactor
             Contextual.andThen
-                (\typeSymbol ->
-                    variableIntroduction valueSymbol typeSymbol
+                (\freshA ->
+                    freshA
+                        |> Contextual.unpure
+                            (Assumptions.add valueSymbol freshA
+                                >> Result.fromMaybe Error
+                            )
+                        |> liftAssumption
                 )
-                freshSymbol
+                freshTypeVar
 
         -- Product
         Value.Tuple value1 value2 ->
             Type.and
                 |> Contextual.args2
-                    (infer2 value1)
-                    (infer2 value2)
+                    (infer value1)
+                    (infer value2)
 
         -- Sum
         Value.Left value ->
             Type.or
                 |> Contextual.args2
-                    (infer2 value)
+                    (infer value)
                     freshTypeVar
 
         Value.Right value ->
             Type.or
                 |> Contextual.args2
                     freshTypeVar
-                    (infer2 value)
+                    (infer value)
 
         Value.ProjLeft value ->
             Contextual.andThen3
                 (\freshA freshB valueType ->
                     freshA
                         |> Contextual.unpure
-                            (Assumptions.addEq (Type.or freshA freshB) valueType
+                            (Assumptions.addEq (Type.and freshA freshB) valueType
                                 >> Result.fromMaybe Error
                             )
                         |> liftAssumption
                 )
                 freshTypeVar
                 freshTypeVar
-                (infer2 value)
+                (infer value)
+
+        Value.ProjRight value ->
+            Contextual.andThen3
+                (\freshA freshB valueType ->
+                    freshB
+                        |> Contextual.unpure
+                            (Assumptions.addEq (Type.and freshA freshB) valueType
+                                >> Result.fromMaybe Error
+                            )
+                        |> liftAssumption
+                )
+                freshTypeVar
+                freshTypeVar
+                (infer value)
+
+
+inferNice : Value -> Result Error ( Context, String )
+inferNice value =
+    infer value emptyContext
+        |> (Result.map << Tuple.mapSecond) Type.toString
