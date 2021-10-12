@@ -96,8 +96,8 @@ andMap =
     Basics.flip apply
 
 
-args2 : Contextual e state a -> Contextual e state b -> (a -> b -> c) -> Contextual e state c
-args2 statefulA statefulB f =
+andMap2 : Contextual e state a -> Contextual e state b -> (a -> b -> c) -> Contextual e state c
+andMap2 statefulA statefulB f =
     map2 f statefulA statefulB
 
 

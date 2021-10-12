@@ -1,5 +1,6 @@
 module Type.Inference exposing (..)
 
+import Context as Context
 import Context.Quotient as Assumptions
 import Data.Contextual as Contextual exposing (Contextual)
 import Data.Stateful as Stateful exposing (Stateful)
@@ -32,7 +33,11 @@ type alias Assumptions =
 
 
 type Error
-    = Error
+    = AssumptionError Assumptions.Error
+
+
+
+-- lifts
 
 
 liftSeed : Contextual Seed e a -> Contextual { r | seed : Seed } e a
@@ -40,9 +45,56 @@ liftSeed =
     Contextual.embedState .seed (\newSeed ctx -> { ctx | seed = newSeed })
 
 
-liftAssumption : Contextual Assumptions e a -> Contextual { r | assumptions : Assumptions } e a
-liftAssumption =
+liftAssumptionCtx : Contextual Assumptions e a -> Contextual { r | assumptions : Assumptions } e a
+liftAssumptionCtx =
     Contextual.embedState .assumptions (\newAssumptions ctx -> { ctx | assumptions = newAssumptions })
+
+
+liftAssumptionError : Contextual state Assumptions.Error a -> Contextual state Error a
+liftAssumptionError contextualA =
+    contextualA
+        >> Result.mapError AssumptionError
+
+
+liftAssumption : Contextual Assumptions Assumptions.Error a -> Contextual { r | assumptions : Assumptions } Error a
+liftAssumption =
+    liftAssumptionCtx >> liftAssumptionError
+
+
+addAssumption : Value.Symbol -> Type -> Context -> Result Error Context
+addAssumption valueSymbol type_ ctx =
+    Assumptions.add valueSymbol type_ ctx.assumptions
+        |> Result.mapError AssumptionError
+        |> Result.map (\newAssumptions -> { ctx | assumptions = newAssumptions })
+
+
+
+-- remove : Value.Symbol -> Quotient -> Quotient
+-- remove valueSymbol (Quotient quotient) =
+--     Quotient
+--         { quotient | context = Context.remove valueSymbol quotient.context }
+
+
+removeAssumption : Value.Symbol -> Context -> Context
+removeAssumption valueSymbol ctx =
+    { ctx
+        | assumptions = Assumptions.remove valueSymbol ctx.assumptions
+    }
+
+
+addEq : Type -> Type -> Context -> Result Error Context
+addEq type1 type2 ctx =
+    Assumptions.addEq type1 type2 ctx.assumptions
+        |> Result.mapError AssumptionError
+        |> Result.map (\newAssumptions -> { ctx | assumptions = newAssumptions })
+
+
+or =
+    Contextual.map2 Type.or
+
+
+and =
+    Contextual.map2 Type.and
 
 
 
@@ -88,20 +140,15 @@ freshTypeVar =
 
 
 variableIntroduction : Value.Symbol -> Type.Symbol -> Inference Type
-variableIntroduction valueSymbol typeSymbol context =
+variableIntroduction valueSymbol typeSymbol =
     let
         fresh : Type
         fresh =
             Type.var typeSymbol
     in
-    Maybe.unwrap (Err Error)
-        (\newAssumptions ->
-            Ok
-                ( { context | assumptions = newAssumptions }
-                , fresh
-                )
-        )
-        (Assumptions.add valueSymbol fresh context.assumptions)
+    fresh
+        |> Contextual.unpure
+            (addAssumption valueSymbol fresh)
 
 
 infer : Value -> Inference Type
@@ -112,63 +159,83 @@ infer term =
                 (\freshA ->
                     freshA
                         |> Contextual.unpure
-                            (Assumptions.add valueSymbol freshA
-                                >> Result.fromMaybe Error
-                            )
-                        |> liftAssumption
+                            (addAssumption valueSymbol freshA)
                 )
                 freshTypeVar
 
         -- Product
-        Value.Tuple value1 value2 ->
-            Type.and
-                |> Contextual.args2
-                    (infer value1)
-                    (infer value2)
+        --   intro
+        Value.Tuple left right ->
+            and (infer left) (infer right)
 
-        -- Sum
-        Value.Left value ->
-            Type.or
-                |> Contextual.args2
-                    (infer value)
-                    freshTypeVar
-
-        Value.Right value ->
-            Type.or
-                |> Contextual.args2
-                    freshTypeVar
-                    (infer value)
-
-        Value.ProjLeft value ->
+        --   elim
+        Value.ProjLeft hopefullyTuple ->
             Contextual.andThen3
-                (\freshA freshB valueType ->
+                (\freshA freshB hopefullyAnd ->
                     freshA
                         |> Contextual.unpure
-                            (Assumptions.addEq (Type.and freshA freshB) valueType
-                                >> Result.fromMaybe Error
-                            )
-                        |> liftAssumption
+                            (addEq (Type.and freshA freshB) hopefullyAnd)
                 )
                 freshTypeVar
                 freshTypeVar
-                (infer value)
+                (infer hopefullyTuple)
 
-        Value.ProjRight value ->
+        Value.ProjRight hopefullyTuple ->
             Contextual.andThen3
-                (\freshA freshB valueType ->
+                (\freshA freshB hopefullyAnd ->
                     freshB
                         |> Contextual.unpure
-                            (Assumptions.addEq (Type.and freshA freshB) valueType
-                                >> Result.fromMaybe Error
-                            )
-                        |> liftAssumption
+                            (addEq (Type.and freshA freshB) hopefullyAnd)
                 )
                 freshTypeVar
                 freshTypeVar
-                (infer value)
+                (infer hopefullyTuple)
+
+        -- Sum
+        --    intro
+        Value.Left value ->
+            or (infer value) freshTypeVar
+
+        Value.Right value ->
+            or freshTypeVar (infer value)
+
+        Value.Lambda valueSymbol body ->
+            Contextual.andThen2
+                (\freshA bodyType ->
+                    Type.arrow freshA bodyType
+                        |> Contextual.unpure
+                            (addAssumption valueSymbol freshA
+                                >> Result.map (removeAssumption valueSymbol)
+                            )
+                )
+                freshTypeVar
+                (infer body)
+
+        Value.Application function arg ->
+            (\aToB a freshA freshB ->
+                freshB
+                    |> Contextual.unpure
+                        (addEq (Type.arrow freshA freshB) aToB
+                            >> Result.andThen
+                                (addEq a freshA)
+                        )
+            )
+                |> Contextual.pure
+                |> Contextual.andMap (infer function)
+                |> Contextual.andMap (infer arg)
+                |> Contextual.andMap freshTypeVar
+                |> Contextual.andMap freshTypeVar
+                |> Contextual.join
 
 
-inferNice : Value -> Result Error ( Context, String )
+inferNice : Value -> Result Error ( Context.Context, String )
 inferNice value =
     infer value emptyContext
-        |> (Result.map << Tuple.mapSecond) Type.toString
+        |> Result.map
+            (\( ctx, assignedType ) ->
+                ( Assumptions.represent ctx.assumptions
+                , assignedType
+                    |> Assumptions.representType ctx.assumptions
+                    |> Type.toString
+                )
+            )

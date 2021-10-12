@@ -1,3 +1,6 @@
+-- make opaque
+
+
 module Context.Quotient exposing (..)
 
 import AssocList as Dict exposing (Dict)
@@ -20,6 +23,11 @@ represent (Quotient { context, substitutions }) =
         context
 
 
+representType : Quotient -> Type -> Type
+representType (Quotient quotient) type_ =
+    Type.Substitutions.represent quotient.substitutions type_
+
+
 empty : Quotient
 empty =
     { context = Context.empty
@@ -36,13 +44,29 @@ singleton symbol type_ =
         |> Quotient
 
 
-add : Value.Symbol -> Type -> Quotient -> Maybe Quotient
+get : Value.Symbol -> Quotient -> Maybe Type
+get valueSymbol (Quotient { context }) =
+    Context.get valueSymbol context
+
+
+type Error
+    = DummyError
+
+
+add : Value.Symbol -> Type -> Quotient -> Result Error Quotient
 add valueSymbol type_ =
     merge
         (singleton valueSymbol type_)
+        >> Result.fromMaybe DummyError
 
 
-addEq : Type -> Type -> Quotient -> Maybe Quotient
+remove : Value.Symbol -> Quotient -> Quotient
+remove valueSymbol (Quotient quotient) =
+    Quotient
+        { quotient | context = Context.remove valueSymbol quotient.context }
+
+
+addEq : Type -> Type -> Quotient -> Result Error Quotient
 addEq t1 t2 (Quotient quotient) =
     Type.unify t1 t2
         |> Maybe.andThen
@@ -53,6 +77,7 @@ addEq t1 t2 (Quotient quotient) =
                             Quotient { quotient | substitutions = mergedSubs }
                         )
             )
+        |> Result.fromMaybe DummyError
 
 
 merge : Quotient -> Quotient -> Maybe Quotient

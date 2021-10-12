@@ -2,8 +2,10 @@ module Context exposing
     ( Context
     , add
     , empty
+    , get
     , mapTypes
     , merge
+    , remove
     , singleton
     )
 
@@ -22,6 +24,17 @@ type Context
 
 type alias Implementation =
     Dict Value.Symbol Type
+
+
+get : Value.Symbol -> Context -> Maybe Type
+get valueSymbol (Context context) =
+    Dict.get valueSymbol context
+
+
+remove : Value.Symbol -> Context -> Context
+remove valueSymbol (Context context) =
+    Dict.remove valueSymbol context
+        |> Context
 
 
 empty : Context
