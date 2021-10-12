@@ -49,25 +49,25 @@ toString value =
             Symbol.toString symbol
 
         Left leftValue ->
-            "Left " ++ toString leftValue
+            "𝕃 " ++ toString leftValue
 
         Right rightValue ->
-            "Right " ++ toString rightValue
+            "ℝ " ++ toString rightValue
 
         Tuple leftValue rightValue ->
-            "( " ++ toString leftValue ++ " , " ++ toString rightValue ++ " )"
+            "(" ++ toString leftValue ++ " , " ++ toString rightValue ++ ")"
 
         ProjLeft innerValue ->
-            "fst " ++ toString innerValue
+            "ℼᴸ " ++ toString innerValue
 
         ProjRight innerValue ->
-            "snd " ++ toString innerValue
+            "ℼᴿ" ++ toString innerValue
 
         Lambda symbol body ->
-            "fn " ++ Symbol.toString symbol ++ ". " ++ toString body
+            "(λ" ++ Symbol.toString symbol ++ ". " ++ toString body ++ ")"
 
         Application f x ->
-            "[" ++ toString f ++ " " ++ toString x ++ "]"
+            "[" ++ toString f ++ " _ " ++ toString x ++ "]"
 
 
 variable : String -> Value

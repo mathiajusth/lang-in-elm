@@ -36,7 +36,7 @@ represent substitutions originalType =
                     newType
 
                 else
-                    shallowSubstitute substitutions newType
+                    represent substitutions newType
            )
 
 

@@ -7,10 +7,12 @@ module Context exposing
     , merge
     , remove
     , singleton
+    , toString
     )
 
 import AssocList as Dict exposing (Dict)
 import Data.Dict.Extra as Dict
+import Data.String as String
 import Data.Symbol as Symbol
 import Maybe.Extra as Maybe
 import Type exposing (Type)
@@ -24,6 +26,19 @@ type Context
 
 type alias Implementation =
     Dict Value.Symbol Type
+
+
+toString : Context -> String
+toString (Context context) =
+    context
+        |> Dict.toList
+        |> List.map
+            (\( valueSymbol, type_ ) ->
+                Symbol.toString valueSymbol
+                    ++ " : "
+                    ++ Type.toString type_
+            )
+        |> String.join " , "
 
 
 get : Value.Symbol -> Context -> Maybe Type

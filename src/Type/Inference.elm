@@ -228,14 +228,17 @@ infer term =
                 |> Contextual.join
 
 
-inferNice : Value -> Result Error ( Context.Context, String )
+inferNice : Value -> Result Error String
 inferNice value =
     infer value emptyContext
         |> Result.map
             (\( ctx, assignedType ) ->
-                ( Assumptions.represent ctx.assumptions
-                , assignedType
-                    |> Assumptions.representType ctx.assumptions
-                    |> Type.toString
-                )
+                Context.toString (Assumptions.represent ctx.assumptions)
+                    ++ "  |-  "
+                    ++ Value.toString value
+                    ++ ": "
+                    ++ (assignedType
+                            |> Assumptions.representType ctx.assumptions
+                            |> Type.toString
+                       )
             )
